@@ -2,6 +2,7 @@ import org.scalajs.linker.interface.ModuleSplitStyle
 
 lazy val resilVisualizer = project.in(file("."))
   .enablePlugins(ScalaJSPlugin) // Enable the Scala.js plugin in this project
+  .enablePlugins(ScalablyTypedConverterExternalNpmPlugin)
   .settings(
     scalaVersion := "3.3.0",
 
@@ -29,4 +30,7 @@ lazy val resilVisualizer = project.in(file("."))
     libraryDependencies += "com.raquo" %%% "laminar" % "15.0.1",
     // Testing framework
     libraryDependencies += "org.scalameta" %%% "munit" % "0.7.29" % Test,
+  
+    // Tell ScalablyTyped that we manage `npm install` ourselves
+    externalNpm := baseDirectory.value,
   )
