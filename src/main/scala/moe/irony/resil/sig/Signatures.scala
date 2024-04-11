@@ -3,8 +3,6 @@ package moe.irony.resil.sig
 
 trait Env[A]:
 
-  val empty: Env[A]
-
   def insert(label: String, value: A): Env[A]
   def update(label: String) (newValue: A): Env[A]
   def lookup(label: String): Option[A]

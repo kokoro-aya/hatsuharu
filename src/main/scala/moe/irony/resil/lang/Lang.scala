@@ -3,31 +3,32 @@ package moe.irony.resil.lang
 import moe.irony.resil.sig
 import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Var}
 
-import scala.runtime.LazyVals.Evaluating
+
+// TODO: refactor this
+class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
+
+
+  override def insert(label: String, value: A): Env[A] =
+    ResilEnv[A]((label, value) :: this.backingField)
+
+  override def update(label: String)(newValue: A): Env[A] =
+    ResilEnv[A]((label, newValue) :: this.backingField)
+
+  override def lookup(label: String): Option[A] =
+    this.backingField.find(label == _._1).map(_._2)
+
+  override infix def ++(other: Env[A]): Env[A] =
+    ResilEnv[A](this.backingField ++ other.backingField)
+
+  override def dumpNames: String =
+    "[" + this.backingField.map(_._1).mkString(",") + "]"
+}
+
+
+def emptyEnv = ResilEnv[RslExp]()
 
 
 class Resil extends Rsl {
-
-  // TODO: refactor this
-  class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
-
-    override val empty: Env[A] = ResilEnv[A]()
-
-    override def insert(label: String, value: A): Env[A] =
-      ResilEnv[A]()
-
-    override def update(label: String)(newValue: A): Env[A] =
-      ResilEnv[A]((label, newValue) :: this.backingField)
-
-    override def lookup(label: String): Option[A] =
-      this.backingField.find(label == _._1).map(_._2)
-
-    override infix def ++(other: Env[A]): Env[A] =
-      ResilEnv[A](this.backingField ++ other.backingField)
-
-    override def dumpNames: String =
-      "[" + this.backingField.map(_._1).mkString(",") + "]"
-  }
 
   def showExp(exp: RslExp): String = exp match
     case I(value) => f"Int($value)"
@@ -74,7 +75,8 @@ class Resil extends Rsl {
     case Var(label) => env.lookup(label) match
       case Some(x) => x match
         case PromV(Some(v)) => v
-        case _ => throw EvalError("[1] Reading an unset promise while resolving variable name " + label)
+        case PromV(None) => throw EvalError("[1] Reading an unset promise while resolving variable name " + label)
+        case _ => x
       case None => throw EvalError("[2] Unresolved variable name " + label)
     case Binop(op, left, right) =>
       (evalEnv(env)(left), evalEnv(env)(right)) match
