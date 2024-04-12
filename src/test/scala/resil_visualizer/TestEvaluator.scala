@@ -6,6 +6,7 @@ import moe.irony.resil.lang.ResilEnv
 import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Var}
 import moe.irony.resil.sig.Logical
 import moe.irony.resil.sig.Binary
+import moe.irony.resil.sig.Logical.LT
 
 class TestEvaluator extends munit.FunSuite:
   test("a") {
@@ -68,4 +69,49 @@ class TestEvaluator extends munit.FunSuite:
       )),
       Call(Var("f"), I(4))))
     assertEquals(expr, IntV(7))
+  }
+
+  test("forward references") {
+    val expr = Resil().eval(
+      Letrec(
+        ResilEnv(
+          List(
+            ("g", Func("x", Call(Var("f"), Var("x")))),
+            ("f", Func("x", I(2))),
+            ("h", Func("x", Call(Var("g"), Var("x"))))
+          )),
+        Call(Var("h"), AUnit())
+      ))
+
+    assertEquals(expr, IntV(2))
+  }
+
+  test("stackoverflow in case of self-calls") {
+    val expr = Resil().eval(Letrec(
+      ResilEnv(
+        List(
+          ("f", Func("x", Call(Var("f"), Var("x"))))
+        )
+      ),
+      Call(Var("f"), AUnit())
+    ))
+
+    assertEquals(expr, ErrV("RangeError: Maximum call stack size exceeded"))
+  }
+
+  test("self reduct to 10") {
+    val expr = Resil().eval(
+      Letrec(
+      ResilEnv(
+        List(
+          ("f", Func("x",
+            If(Logop(Logical.LT, Var("x"), I(10)),
+              Call(Var("f"), Binop(Binary.ADD, Var("x"), I(1))),
+              Var("x")
+          )))
+        )
+      ),
+      Call(Var("f"), I(1))))
+
+    assertEquals(expr, IntV(10))
   }

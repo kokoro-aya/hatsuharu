@@ -7,6 +7,8 @@ trait Env[A]:
   def update(label: String) (newValue: A): Env[A]
   def lookup(label: String): Option[A]
 
+  def lookupBy(label: String) (criteria: (A) => Boolean): Option[A]
+
   infix def ++(other: Env[A]): Env[A]
 
   def dumpNames: String

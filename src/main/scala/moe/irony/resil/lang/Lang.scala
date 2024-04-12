@@ -17,6 +17,9 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
   override def lookup(label: String): Option[A] =
     this.backingField.find(label == _._1).map(_._2)
 
+  override def lookupBy(label: String) (criteria: (A) => Boolean): Option[A] =
+    this.backingField.find { it => label == it._1 && criteria(it._2) }.map(_._2)
+
   override infix def ++(other: Env[A]): Env[A] =
     ResilEnv[A](this.backingField ++ other.backingField)
 
@@ -72,7 +75,13 @@ class Resil extends Rsl {
     case I(value) => IntV(value)
     case B(value) => BoolV(value)
     case S(value) => StrV(value)
-    case Var(label) => env.lookup(label) match
+    case Var(label) => env.lookupBy(label) {
+          // This injected lookup logic means that we will look for first entry which is *either* a promise that holds a
+          // value, *or* a value. An unresolved promise will not be taken into account.
+      case PromV(Some(_)) => true
+      case PromV(None) => false
+      case _ => true
+    } match
       case Some(x) => x match
         case PromV(Some(v)) => v
         case PromV(None) => throw EvalError("[1] Reading an unset promise while resolving variable name " + label)
@@ -106,11 +115,11 @@ class Resil extends Rsl {
       val vFn = evalEnv(env)(funexp)
       val vAct = evalEnv(env)(actual)
       vFn match
-        case ClosV(env, f) => f match
+        case ClosV(innerEnv, f) => f match
           case Func(funArg, funBody) =>
-            val newEnv = ResilEnv[RslVal]()
+            val newEnv = env // Refill a new env with given environment and add the reference as new scope
             val currEnv = newEnv.insert(funArg, vAct)
-            evalEnv(env ++ currEnv)(funBody)
+            evalEnv(innerEnv ++ currEnv)(funBody)
           case _ => throw EvalError ("[8] call oper. must have a Func as f, got " + showExp(f))
         case _ => throw EvalError ("[9] call oper. must have first subexpr as Closure, got " + show(vFn))
     case CallDyn(dynname, actual) =>
@@ -151,7 +160,7 @@ class Resil extends Rsl {
     try
       evalEnv(ResilEnv[RslVal]())(e)
     catch {
-      case e: EvalError => ErrV(e.message)
+      case e: EvalError => ErrV("EvalError: " + e.message)
       case e: Throwable => ErrV(e.getMessage)
     }
 }
