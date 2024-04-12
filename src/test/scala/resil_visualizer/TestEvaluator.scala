@@ -126,3 +126,89 @@ class TestEvaluator extends munit.FunSuite:
     val res = Resil().eval(expr)
     assertEquals(res, IntV(10))
   }
+
+  test("simple oop") {
+    val expr =
+      Letrec(
+        ResilEnv(
+          List(
+            ("Rectangle",
+              Func("width",
+                Func("height",
+                  Func("fn",
+                    Func("args",
+                      Letrec(
+                        ResilEnv(
+                          List(
+                            ("area", Func("_", Binop(Binary.MULT, Var("width"), Var("height")))),
+                            ("perimeter", Func("_", Binop(Binary.MULT, I(2), Binop(Binary.ADD, Var("width"), Var("height"))))),
+                            ("timesArea", Func("x", Binop(Binary.MULT, Var("x"), CallDyn(S("area"), AUnit())))))),
+                        CallDyn(Var("fn"), Var("args"))
+                      ))
+                  )))),
+            ("rect1", Call(Call(Var("Rectangle"), I(3)), I(4))),  // var rect1 = new Rectangle(3, 4)
+            ("rect2", Call(Call(Var("Rectangle"), I(4)), I(9)))   // var rect2 = new Rectangle(4, 9)
+          )),
+        Pair(
+          Pair(
+            Call(Call(Var("rect1"), S("area")), AUnit()),         // rect1.area == 12
+            Call(Call(Var("rect2"), S("perimeter")), AUnit())     // rect2.perimeter == 26
+          ),
+          Call(Call(Var("rect2"), S("timesArea")), I(4)))         // rect2.timesArea(4) == 144
+        )
+    val res = Resil().eval(expr)
+    assertEquals(res, PairV(PairV(IntV(12), IntV(26)), IntV(144)))
+  }
+
+  test("more oop") {
+    val expr = 
+      Letrec(
+        ResilEnv(
+          List(
+            ("Animal",
+              Func("name",
+                Func("getter",
+                  Letrec(
+                    ResilEnv(
+                      List(("getName", Func("_", Var("name"))))),
+                      CallDyn(Var("getter"), AUnit()))))),
+            ("Cat",
+              Func("name",
+                Func("color",
+                  Func("getter",
+                    Letrec(
+                      ResilEnv(
+                        List(
+                          ("getName", Func("_", Var("name"))),
+                          ("getColor", Func("_", Var("color"))),
+                        )),
+                        CallDyn(Var("getter"), AUnit())))))),
+            ("Animal@name", Func("animal", Call(Var("animal"), S("getName")))),
+            ("Animal@description",
+              Func("animal",
+                Pair(S("my name is"), Call(Var("Animal@name"), Var("animal"))))),
+            ("Cat@description", Func("cat", Pair(S("meow "), Call(Var("cat"), S("getColor"))))),
+            ("someAnimal", Call(Var("Animal"), S("Alex"))),
+            ("someCat", Call(Call(Var("Cat"), S("Bob")), S("blue"))))),
+        Pair(
+          Pair(
+            Call(Var("Animal@description"), Var("someCat")),
+            Call(Var("Cat@description"), Var("someCat"))
+          ),
+          Pair(
+            Call(Var("Animal@name"), Var("someAnimal")),
+            Call(Var("Animal@name"), Var("someCat"))
+          )))
+    val res = Resil().eval(expr)                    // class Cat extends class Animal
+                                                    // var someAnimal = new Animal("Alex")
+    val expected = PairV(                           // var someCat = new Cat("Bob", color="blue")
+      PairV(                                        //
+        PairV(StrV("my name is"), StrV("Bob")),     // someAnimal.description() = "My name is " + "Bob"
+        PairV(StrV("meow "), StrV("blue"))          // someCat.description() = "meow " + "blue"
+      ),                                            //
+      PairV(                                        //
+        StrV("Alex"),                               // someAnimal.name() == "Alex"
+        StrV("Bob")                                 // someCat.name() == "Bob"
+      ))
+    assertEquals(res, expected)
+  }
