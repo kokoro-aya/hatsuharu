@@ -15,11 +15,13 @@ trait Env[A]:
 
   val backingField: List[(String, A)]
 
-enum Binary {
+trait Op
+
+enum Binary extends Op {
   case ADD, SUB, MULT, DIV, MOD
 }
 
-enum Logical {
+enum Logical extends Op {
   case EQ, LT, LE, NEQ
 }
 
