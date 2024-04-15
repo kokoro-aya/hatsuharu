@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Var}
+import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
 
 
 // TODO: refactor this
@@ -37,7 +37,7 @@ class Resil extends Rsl {
     case I(value) => f"Int($value)"
     case B(value) => f"Bool($value)"
     case S(value) => f"Str($value)"
-    case Var(label) => f"Var($label)"
+    case Variable(label) => f"Var($label)"
     case Binop(_, _, _) => "Binop"
     case Logop(_, _, _) => "Logop"
     case If(_, _, _) => "if"
@@ -75,7 +75,7 @@ class Resil extends Rsl {
     case I(value) => IntV(value)
     case B(value) => BoolV(value)
     case S(value) => StrV(value)
-    case Var(label) => env.lookupBy(label) {
+    case Variable(label) => env.lookupBy(label) {
           // This injected lookup logic means that we will look for first entry which is *either* a promise that holds a
           // value, *or* a value. An unresolved promise will not be taken into account.
       case PromV(Some(_)) => true

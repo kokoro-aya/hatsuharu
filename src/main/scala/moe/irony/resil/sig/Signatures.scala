@@ -42,7 +42,7 @@ sealed class RslExp
 case class I(value: Int) extends RslExp
 case class B(value: Boolean) extends RslExp
 case class S(value: String) extends RslExp
-case class Var(label: String) extends RslExp
+case class Variable(label: String) extends RslExp
 case class Binop(op: Binary, left: RslExp, right: RslExp) extends RslExp
 case class Logop(op: Logical, left: RslExp, right: RslExp) extends RslExp
 case class If(cond: RslExp, caseTrue: RslExp, caseElse: RslExp) extends RslExp
