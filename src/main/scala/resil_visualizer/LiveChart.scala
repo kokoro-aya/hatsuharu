@@ -10,11 +10,10 @@ import org.scalajs.dom
 
 import typings.chartJs.mod.*
 
-// import javascriptLogo from "/javascript.svg"
-@js.native @JSImport("/javascript.svg", JSImport.Default)
-val javascriptLogo: String = js.native
+//// import javascriptLogo from "/javascript.svg"
+//@js.native @JSImport("/javascript.svg", JSImport.Default)
+//val javascriptLogo: String = js.native
 
-@main
 def LiveChart(): Unit =
   renderOnDomContentLoaded(
     dom.document.getElementById("app"),
