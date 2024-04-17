@@ -1,6 +1,6 @@
 import org.scalajs.linker.interface.ModuleSplitStyle
 
-lazy val resilVisualizer = project.in(file("."))
+lazy val visualizer = project.in(file("."))
   .enablePlugins(ScalaJSPlugin) // Enable the Scala.js plugin in this project
   .enablePlugins(ScalablyTypedConverterExternalNpmPlugin)
   .settings(
@@ -19,7 +19,7 @@ lazy val resilVisualizer = project.in(file("."))
     scalaJSLinkerConfig ~= {
       _.withModuleKind(ModuleKind.ESModule)
         .withModuleSplitStyle(
-          ModuleSplitStyle.SmallModulesFor(List("resil_visualizer")))
+          ModuleSplitStyle.SmallModulesFor(List("visualizer")))
     },
 
     /* Depend on the scalajs-dom library.

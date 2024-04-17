@@ -1,4 +1,4 @@
-package resil_visualizer
+package lang_visualizer
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*

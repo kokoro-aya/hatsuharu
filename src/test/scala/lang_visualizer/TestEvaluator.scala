@@ -1,4 +1,4 @@
-package resil_visualizer
+package lang_visualizer
 
 import moe.irony.resil.lang
 import moe.irony.resil.lang.Resil
