@@ -21,6 +21,7 @@ case object ArrowToken extends Token
 case object DoubleArrowToken extends Token
 case object ValToken extends Token
 case object EndToken extends Token
+case object CallToken extends Token
 case object DynToken extends Token
 case object LetToken extends Token
 case object RecToken extends Token
@@ -54,6 +55,7 @@ object Tokenizer:
     case s"val$xs" => ValToken :: tokenize(xs)
     case s"end$xs" => EndToken :: tokenize(xs)
     case s"dyn$xs" => DynToken :: tokenize(xs)
+    case s"call$xs" => CallToken :: tokenize(xs)
     case s"let$xs" => LetToken :: tokenize(xs)
     case s"rec$xs" => RecToken :: tokenize(xs)
     case s"in$xs" => InToken :: tokenize(xs)

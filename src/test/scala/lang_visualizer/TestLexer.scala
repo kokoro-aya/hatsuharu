@@ -1,8 +1,8 @@
 package lang_visualizer
 
 import moe.irony.resil.lexer.*
-import moe.irony.resil.sig.Logical.*
-import moe.irony.resil.sig.Binary.*
+import moe.irony.resil.sig.Binary.{ADD, SUB}
+import moe.irony.resil.sig.Logical.{EQ, LT}
 
 class TestLexer extends munit.FunSuite:
   test("simple example") {
