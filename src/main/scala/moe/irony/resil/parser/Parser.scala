@@ -29,7 +29,7 @@ class Parser:
             parseCall(tokens)
         case FnToken => parseFunc(tokens)
         case LeftParenToken => parseTerm(tokens)
-
+  
         case LetToken =>
           if tokens.size > 2 && tokens(1) == RecToken then
             parseLetRec(tokens)
@@ -39,7 +39,7 @@ class Parser:
         //      case SndToken => ???
         //      case UnitToken => ???
         case _ => throw IllegalStateException("Not an expected token in top-level expr parsing")
-
+  
   def parseIf(tokens: List[Token]): (RslExp, List[Token]) =
     val (condExpr, condCont) = parseExpr(tokens.drop(1))
     if condCont.head != ThenToken then
@@ -51,7 +51,7 @@ class Parser:
       else
         val (elseExpr, elseCont) = parseExpr(thenCont.drop(1))
         (If(condExpr, thenExpr, elseExpr), elseCont)
-
+  
   def parseFunc(tokens: List[Token]): (RslExp, List[Token]) =
     val (Variable(str), fnCont) = parseIdentifier(tokens.drop(1))
     if fnCont.head != DoubleArrowToken then
@@ -59,7 +59,7 @@ class Parser:
     else
       val (fnBodyExpr, fnAfterCont) = parseExpr(fnCont.drop(1))
       (Func(str, fnBodyExpr), fnAfterCont)
-
+  
   def parseCall(tokens: List[Token]): (RslExp, List[Token]) =
     val (callFnExpr, fnCont) = parseExpr(tokens.drop(1))
     if fnCont.head != InToken then
@@ -67,7 +67,7 @@ class Parser:
     else
       val (callActualExpr, actualCont) = parseExpr(fnCont.drop(1))
       (Call(callFnExpr, callActualExpr), actualCont)
-
+  
   def parseCallDyn(tokens: List[Token]): (RslExp, List[Token]) =
     val (dynStrExpr, dynCont) = parseLiteral(tokens.drop(2))
     dynStrExpr match
@@ -79,7 +79,7 @@ class Parser:
           (CallDyn(dynStrExpr, dynActualExpr), actualCont)
       case _ =>
         throw IllegalStateException("Expected string literal in calldyn expression")
-
+  
   def parseLetRec(tokens: List[Token]): (RslExp, List[Token]) =
     val (assigns, remain) = parseAssigns(tokens.drop(2))
     if remain.head != InToken then
@@ -89,12 +89,12 @@ class Parser:
       throw IllegalStateException("Expected `end` in let-rec expression")
     else
       (Letrec(assigns, expr), letCont.drop(1))
-
+  
   def parseAssigns(tokens: List[Token]): (Env[RslExp], List[Token]) =
     if tokens.isEmpty || tokens.head != ValToken then
       (ResilEnv(), tokens)
     else
-      val (Variable(s), varCont) = parseIdentifier(tokens)
+      val (Variable(s), varCont) = parseIdentifier(tokens.drop(1))
       if varCont.head != AssignToken then
         throw IllegalStateException("Expected `=` in assignment")
       else
@@ -102,33 +102,36 @@ class Parser:
         val (contEnv, contAfterAll) = parseAssigns(bodyCont)
         (contEnv.insert(s, bodyExpr), contAfterAll)
 
-
   /*
    * Expression parsers
    */
 
   val rslOperators = Map(
-    1 -> List(Binary.ADD, Binary.SUB),
-    2 -> List(Binary.MULT, Binary.DIV, Binary.MOD),
-    3 -> List(Logical.LT, Logical.LE),
-    4 -> List(Logical.EQ, Logical.NEQ)
+    0 -> List(Logical.EQ, Logical.NEQ),
+    1 -> List(Logical.LT, Logical.LE),
+    2 -> List(Binary.ADD, Binary.SUB),
+    3 -> List(Binary.MULT, Binary.DIV, Binary.MOD),
   )
 
   def parseExprOrPair(tokens: List[Token]): (RslExp, List[Token]) =
-    val (factorExp, afterFactor) = parseExprOfLevel(2, tokens)
+    val (factorExp, afterFactor) = parseExprOfLevel(0, tokens)
     if afterFactor.isEmpty then
       (factorExp, afterFactor)
-    else if afterFactor.head == CommaToken then
-      val (subOpt, afterSub) = parsePairSub(tokens)
-      subOpt match
-        case Some(right) => (Pair(factorExp, right), afterSub)
-        case None => (factorExp, afterFactor)
-
     else
-      val (subOpt, afterSub) = parseExprSubOfLevel(1, afterFactor)
-      subOpt match
-        case Some(o, right) => (Binop(o, factorExp, right), afterSub)
-        case None => (factorExp, afterFactor)
+      if afterFactor.head == CommaToken then
+        val (subOpt, afterSub) = parsePairSub(afterFactor)
+        subOpt match
+          case Some(right) => (Pair(factorExp, right), afterSub)
+          case None => (factorExp, afterFactor)
+  
+      else
+        val (subOpt, afterSub) = parseExprSubOfLevel(1, afterFactor)
+        subOpt match
+          case Some(o, right) =>
+            o match
+              case binary: Binary => (Binop(binary, factorExp, right), afterSub)
+              case logical: Logical => (Logop(logical, factorExp, right), afterSub)
+          case None => (factorExp, afterFactor)
 
 
   def parsePairSub(tokens: List[Token]): (Option[RslExp], List[Token]) =
@@ -136,7 +139,7 @@ class Parser:
       throw IllegalStateException("expect a complement of pair")
     else tokens.head match
       case CommaToken =>
-        val (factorExp, after) = parseExprOrPair(tokens.drop(1))
+        val (factorExp, after) =  parseExprOrPair(tokens.drop(1))
         if after.isEmpty then
           (Some(factorExp), after)
         else
@@ -145,34 +148,41 @@ class Parser:
             case Some(rightExp) => (Some(Pair(factorExp, rightExp)), nextAfter)
             case _ => (Some(factorExp), after)
       case _ => (None, tokens)
-
+  
   def parseExprOfLevel(level: Int, tokens: List[Token]): (RslExp, List[Token]) =
     val (factorExp, afterFactor) =
-      if level < 2 then parseExprOfLevel(level + 1, tokens) else parseTerm(tokens)
+      if level < (rslOperators.size - 1) then parseExprOfLevel(level + 1, tokens) else parseTerm(tokens)
     if afterFactor.isEmpty then
       (factorExp, afterFactor)
     else
       val (subOpt, afterSub) = parseExprSubOfLevel(level, afterFactor)
       subOpt match
-        case Some(o, right) => (Binop(o, factorExp, right), afterSub)
+        case Some(o, right) =>
+          o match
+            case binary: Binary => (Binop(binary, factorExp, right), afterSub)
+            case logical: Logical => (Logop(logical, factorExp, right), afterSub)
         case None => (factorExp, afterFactor)
-
-
-  def parseExprSubOfLevel(level: Int, tokens: List[Token]): (Option[(Binary, RslExp)], List[Token]) =
+  
+  
+  
+  def parseExprSubOfLevel(level: Int, tokens: List[Token]): (Option[(Op, RslExp)], List[Token]) =
     if tokens.isEmpty then
       throw IllegalStateException("expect a complement of expr")
     else tokens.head match
-      case OperToken(o: Binary) if rslOperators(level).contains(o) =>
-        val (factorExp, after) = if level < 2 then parseExprOfLevel(level + 1, tokens.drop(1)) else parseTerm(tokens.drop(1))
+      case OperToken(o: Op) if rslOperators(level).contains(o) =>
+        val (factorExp, after) = if level < (rslOperators.size - 1) then parseExprOfLevel(level + 1, tokens.drop(1)) else parseTerm(tokens.drop(1))
         if after.isEmpty then
           (Some(o, factorExp), after)
         else
           val (nextSubOpt, nextAfter) = parseExprSubOfLevel(level, after)
           nextSubOpt match
-            case Some(innerOp, rightExp) => (Some(o, Binop(innerOp, factorExp, rightExp)), nextAfter)
+            case Some(innerOp, rightExp) =>
+              innerOp match
+                case binary: Binary => (Some(o, Binop(binary, factorExp, rightExp)), nextAfter)
+                case logical: Logical => (Some(o, Logop(logical, factorExp, rightExp)), nextAfter)
             case _ => (Some(o, factorExp), after)
       case _ => (None, tokens)
-
+  
   def parseTerm(tokens: List[Token]): (RslExp, List[Token]) =
     if tokens.isEmpty then
       throw IllegalStateException("expect a term (left paren or literal)")
@@ -184,14 +194,20 @@ class Parser:
         afterExpr.head match
           case RightParenToken =>
             (exprExp, afterExpr.tail)
+          // Handles pair case in term
+          case CommaToken =>
+            val (subOpt, afterSub) = parsePairSub(afterExpr)
+            subOpt match
+              case Some(right) => (Pair(exprExp, right), afterSub)
+              case None => (exprExp, afterExpr)
           case _ => throw IllegalStateException("Unmatched left parenthesis")
       case _ => parseLiteral(tokens)
-
+  
   /*
       Fragments
    */
-
-
+  
+  
   def parseLiteral(tokens: List[Token]): (RslExp, List[Token]) =
     if tokens.isEmpty then
       throw IllegalStateException("tokens is empty, expect a literal (int, bool, str or var)")
@@ -203,7 +219,7 @@ class Parser:
         case VarToken(l) => Variable(l)
         case _ => throw IllegalStateException("not a literal token")
       (lit, tokens.tail)
-
+  
   def parseIdentifier(tokens: List[Token]): (Variable, List[Token]) =
     if tokens.isEmpty then
       throw IllegalStateException("tokens is empty, expect an identifier (var)")

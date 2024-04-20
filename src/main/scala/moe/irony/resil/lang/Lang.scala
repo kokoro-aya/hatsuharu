@@ -25,6 +25,11 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
 
   override def dumpNames: String =
     "[" + this.backingField.map(_._1).mkString(",") + "]"
+
+
+  // For testing comparison purpose
+  override def toString: String =
+    "[" + this.backingField.map((s, e) => s + ": " + e).mkString(", ") + "]"
 }
 
 
