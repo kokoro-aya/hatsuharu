@@ -80,8 +80,8 @@ object Tokenizer:
     case s"<=$xs" => OperToken(Logical.LE) :: tokenize(xs)
     case s"<$xs" => OperToken(Logical.LT) :: tokenize(xs)
     case s"=$xs" => AssignToken :: tokenize(xs)
-    case s if s(0).isLetter || s(0) == '_' =>
-      val lettersOrUnderline = s.takeWhile { it => it.isLetter || it == '_' }
+    case s if s(0).isLetter || s(0) == '_' || s(0) == '#' =>
+      val lettersOrUnderline = s.takeWhile { it => it.isLetter || it.isDigit || it == '_' || it == '#' }
       val remains = s.drop(lettersOrUnderline.length)
       VarToken(lettersOrUnderline) :: tokenize(remains)
     case _ => throw IllegalStateException("Tokenization failed")
