@@ -1,6 +1,10 @@
 import org.scalajs.linker.interface.ModuleSplitStyle
 
+lazy val core = RootProject(file("../corelang"))
+
+
 lazy val visualizer = project.in(file("."))
+  .dependsOn(core)
   .enablePlugins(ScalaJSPlugin) // Enable the Scala.js plugin in this project
   .enablePlugins(ScalablyTypedConverterExternalNpmPlugin)
   .settings(
