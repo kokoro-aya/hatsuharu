@@ -1,4 +1,4 @@
-package lang_visualizer
+package moe.irony.resil.visualizer
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.*

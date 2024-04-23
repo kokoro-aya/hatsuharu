@@ -1,6 +1,5 @@
 package moe.irony.resil.sig
 
-
 trait Env[A]:
 
   def insert(label: String, value: A): Env[A]

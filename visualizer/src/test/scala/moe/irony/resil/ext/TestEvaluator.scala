@@ -1,12 +1,9 @@
-package lang_visualizer
+package moe.irony.resil.ext
 
 import moe.irony.resil.lang
-import moe.irony.resil.lang.Resil
-import moe.irony.resil.lang.ResilEnv
-import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
-import moe.irony.resil.sig.Logical
-import moe.irony.resil.sig.Binary
+import moe.irony.resil.lang.{Resil, ResilEnv}
 import moe.irony.resil.sig.Logical.LT
+import moe.irony.resil.sig.*
 
 class TestEvaluator extends munit.FunSuite:
   test("simple if expr") {

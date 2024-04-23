@@ -1,4 +1,4 @@
-package lang_visualizer
+package moe.irony.resil.ext
 
 import moe.irony.resil.utils.IdentifierGenerator
 

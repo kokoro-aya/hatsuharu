@@ -1,4 +1,4 @@
-package lang_visualizer
+package moe.irony.resil
 
 import moe.irony.resil.lang.ResilEnv
 import moe.irony.resil.lexer.Tokenizer

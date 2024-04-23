@@ -1,4 +1,4 @@
-package lang_visualizer
+package moe.irony.resil.ext
 
 import moe.irony.resil.lexer.*
 import moe.irony.resil.sig.Binary.{ADD, SUB}

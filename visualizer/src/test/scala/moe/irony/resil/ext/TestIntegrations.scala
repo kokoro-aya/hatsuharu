@@ -1,8 +1,8 @@
-package lang_visualizer
+package moe.irony.resil.ext
 
+import moe.irony.resil.lang.Resil
 import moe.irony.resil.lexer.Tokenizer
 import moe.irony.resil.parser.Parser
-import moe.irony.resil.lang.Resil
 import moe.irony.resil.sig.IntV
 
 class TestIntegrations extends munit.FunSuite:

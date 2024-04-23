@@ -1,4 +1,4 @@
-package lang_visualizer
+package moe.irony.resil.visualizer
 
 class ModelTest extends munit.FunSuite:
   test("fullPrice") {
