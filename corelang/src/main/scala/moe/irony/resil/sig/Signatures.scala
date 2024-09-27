@@ -46,6 +46,12 @@ case class ClosV(env: Env[RslVal], f: RslExp) extends RslVal
 case class PromV(var promVal: Option[RslVal]) extends RslVal
 case class ErrV(errMessage: String) extends RslVal
 
+sealed class RslPattern
+
+case class NamedPattern(label: String) extends RslPattern
+case class NumberPattern(value: Int) extends RslPattern
+case class SubscriptPattern(pattern: RslPattern, subscript: RslPattern) extends RslPattern
+
 sealed class RslExp
 
 // val a = Square(1, 2)
@@ -64,6 +70,8 @@ case class Struct(header: Option[String], values: Map[String, RslExp]) extends R
 case class ReadonlyList(values: List[RslExp]) extends RslExp
 case class Array(var elements: mutable.ArraySeq[RslExp]) extends RslExp
 case class Ref(value: RslExp) extends RslExp
+case class Update(assignee: RslExp, assigned: RslExp) extends RslExp 
+case class Subscript(value: RslExp, subscript: RslExp) extends RslExp
 
 case class I(value: Int) extends RslExp
 case class B(value: Boolean) extends RslExp

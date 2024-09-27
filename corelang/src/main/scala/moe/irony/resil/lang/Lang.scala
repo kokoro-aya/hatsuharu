@@ -2,9 +2,10 @@ package moe.irony.resil.lang
 
 import moe.irony.resil.sig
 import moe.irony.resil.sig.{
-  UnionV, TupleV, RecordV, ListV, ArrayV, RefV,
-  Data, Components, Struct, ReadonlyList, Array, Ref,
-  AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
+  RslPattern, NamedPattern, NumberPattern, SubscriptPattern,
+  AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, Env, ErrV, EvalError, Fst, Func,
+  I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslExp, 
+  RslVal, S, Snd, StrV, Struct, Subscript, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -53,6 +54,8 @@ class Resil extends Rsl {
     case Array(elements) =>
       "Array(" ++ elements.map(showExp).mkString(",") ++ ")"
     case Ref(value) => f"Ref(${showExp(value)})"
+    case Update(assignee, assigned) => f"${showExp(assignee)} := ${showExp(assigned)}"
+    case Subscript(value, subscript) => f"${showExp(value)}[${showExp(subscript)}]"
     case I(value) => f"Int($value)"
     case B(value) => f"Bool($value)"
     case S(value) => f"Str($value)"
@@ -114,7 +117,50 @@ class Resil extends Rsl {
     case PromV(_) => "promise"
     case ErrV(_) => "error"
 
+
+  private def buildPattern(e: RslExp): RslPattern = e match
+    case S(value) => NamedPattern(value)
+    case I(value) => NumberPattern(value)
+    case Subscript(value, subscript) => SubscriptPattern(buildPattern(value), buildPattern(subscript))
+    case _ => throw EvalError("Currently only (str, int) or nested patterns are allowed")
+
   override def evalEnv(env: Env[RslVal])(e: RslExp): RslVal = e match
+    case Data(header, fields) =>
+      throw EvalError("Custom ADT not supported yet")
+    case Components(values, arity) =>
+      TupleV(values.map { v => evalEnv(env)(v)}, arity)
+    case Struct(header, values) =>
+      RecordV(header, values = values.map { (k, v) => (k, evalEnv(env)(v)) })
+    case ReadonlyList(values) =>
+      ListV(values.map { v => evalEnv(env)(v) })
+    case Array(elements) =>
+      ArrayV(elements.map { v => evalEnv(env)(v) }, elements.size)
+    case Ref(value) =>
+      RefV(evalEnv(env)(value))
+    case Update(assignee, assigned) =>
+      buildPattern(assignee) match
+        case NamedPattern(label) =>
+          env.lookup(label) match
+            case Some(v: RefV) =>
+              v.value = evalEnv(env)(assigned)
+              UnitV()
+            case Some(v) =>
+              throw EvalError("Attempt to apply update on value which is not a ref " + typ (v))
+            case None =>
+              throw EvalError("Attempt to apply update on non existing ref variable " + label)
+        case SubscriptPattern(NamedPattern(label), NumberPattern(index)) =>
+          env.lookup(label) match
+            case Some(v: ArrayV) =>
+              if index >= 0 && index < v.length then
+                v.values(index) = evalEnv(env)(assigned)
+                UnitV()
+              else
+                throw EvalError(s"Index=$index out of bound for updating array")
+            case Some(v) =>
+              throw EvalError("Attempt to apply update on value which is not an array " + typ (v))
+            case None =>
+              throw EvalError("Attempt to apply update on non existing array variable " + label)
+        case _ => throw EvalError("Complex subscript patterns not supported yet, only <name> and <name>[<index>] allowed")
     case I(value) => IntV(value)
     case B(value) => BoolV(value)
     case S(value) => StrV(value)
