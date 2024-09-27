@@ -1,7 +1,10 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
+import moe.irony.resil.sig.{
+  UnionV, TupleV, RecordV, ListV, ArrayV, RefV,
+  Data, Components, Struct, ReadonlyList, Array, Ref,
+  AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
 
 
 // TODO: refactor this
@@ -39,6 +42,17 @@ def emptyEnv = ResilEnv[RslExp]()
 class Resil extends Rsl {
 
   def showExp(exp: RslExp): String = exp match
+    case Data(header, fields) =>
+      header ++ "(" ++ fields.map(showExp).mkString(", ") ++ ")"
+    case Components(values, _) =>
+      "(" ++ values.map(showExp).mkString(", ") ++ ")"
+    case Struct(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ showExp(v) }.mkString(", ") ++ " }"
+    case ReadonlyList(values) =>
+      "[" ++ values.map(showExp).mkString(",") ++ "]"
+    case Array(elements) =>
+      "Array(" ++ elements.map(showExp).mkString(",") ++ ")"
+    case Ref(value) => f"Ref(${showExp(value)})"
     case I(value) => f"Int($value)"
     case B(value) => f"Bool($value)"
     case S(value) => f"Str($value)"
@@ -57,6 +71,18 @@ class Resil extends Rsl {
     case AUnit() => "Unit"
 
   override def show(v: RslVal): String = v match
+    case UnionV(header, fields) =>
+      header ++ "(" ++ fields.map(show).mkString(", ") ++ ")"
+    case TupleV(values,  _) =>
+      "(" ++ values.map(show).mkString(", ") ++ ")"
+    case RecordV(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ show(v) }.mkString(", ") ++ " }"
+    case ListV(values) =>
+      "[" ++ values.map(show).mkString(",") ++ "]"
+    case ArrayV(values, length) =>
+      f"Array@$length(${values.map(show).mkString(",")})"
+    case RefV(value) =>
+      f"ref(${show(value)})"
     case IntV(value) => value.toString
     case BoolV(value) => value.toString
     case StrV(value) => value
@@ -67,6 +93,18 @@ class Resil extends Rsl {
     case ErrV(msg) => "Error: " + msg
 
   override def typ(v: RslVal): String = v match
+    case UnionV(header, _) =>
+      header
+    case TupleV(values,  _) =>
+      "(" ++ values.map(typ).mkString(", ") ++ ")"
+    case RecordV(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ typ(v) }.mkString(", ") ++ " }"
+    case ListV(values) =>
+      "[" ++ values.map(typ).mkString(",") ++ "]"
+    case ArrayV(values, length) =>
+      f"Array@$length(${values.map(typ).mkString(",")})"
+    case RefV(value) =>
+      f"ref(${typ(value)})"
     case IntV(_) => "int"
     case BoolV(_) => "bool"
     case StrV(_) => "str"
