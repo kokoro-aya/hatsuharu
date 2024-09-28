@@ -1,11 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{
-  RslPattern, NamedPattern, NumberPattern, SubscriptPattern,
-  AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, Env, ErrV, EvalError, Fst, Func,
-  I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslExp, 
-  RslVal, S, Snd, StrV, Struct, Subscript, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, NamedPattern, NumberPattern, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslExp, RslPattern, RslProgram, RslVal, S, Snd, StrV, Struct, Subscript, SubscriptPattern, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -244,6 +240,8 @@ class Resil extends Rsl {
       case PairV(_, e2) => e2
       case _ => throw EvalError("[14] snd operation applied to non-pair")
     case AUnit() => UnitV()
+
+  override def evalProgram(env: Env[RslVal])(program: RslProgram): List[RslVal] = ???
 
   override def eval(e: RslExp): RslVal =
     try

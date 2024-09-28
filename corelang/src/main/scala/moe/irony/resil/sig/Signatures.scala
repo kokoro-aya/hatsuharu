@@ -17,6 +17,33 @@ trait Env[A]:
 
   val backingField: List[(String, A)]
 
+
+case class Environment(types: Env[RslType], variables: Env[RslVal]):
+  
+  def insert(label: String, ty: RslType): Unit = types.insert(label, ty)
+  def insert(label: String, v: RslVal): Unit = variables.insert(label, v)
+  
+  def update(label: String, ty: RslType): Unit = types.update(label) (ty)
+  def update(label: String, v: RslVal): Unit = variables.update(label) (v)
+
+  def lookupType(label: String): Unit = types.lookup(label)
+  def lookupValue(label: String): Unit = variables.lookup(label)
+
+  def lookupTypeByCriteria(label: String) (criteria: (RslType) => Boolean): Option[RslType] =
+    types.lookupBy(label) (criteria)
+  def lookupValueByCriteria(label: String) (criteria: (RslVal) => Boolean): Option[RslVal] =
+    variables.lookupBy(label) (criteria)
+
+  def +++(other: Env[RslType]): Environment =
+    Environment(this.types ++ other, this.variables)
+
+  def ++(other: Env[RslVal]): Environment =
+    Environment(this.types, this.variables ++ other)
+    
+  def dumpTypes: String = types.dumpNames
+  def dumpValues: String = variables.dumpNames
+  
+
 trait Op
 
 enum Binary extends Op {
@@ -46,13 +73,46 @@ case class ClosV(env: Env[RslVal], f: RslExp) extends RslVal
 case class PromV(var promVal: Option[RslVal]) extends RslVal
 case class ErrV(errMessage: String) extends RslVal
 
+sealed class RslType
+
+case class DataT(name: String) extends RslType
+case class TupleT(types: List[RslType]) extends RslType
+case class RecordT(header: Option[String], types: List[RslType]) extends RslType
+case class ListT() extends RslType
+case class ArrayT() extends RslType
+case class RefT(ty: RslType) extends RslType
+
+object IntT extends RslType
+object BoolT extends RslType
+object StrT extends RslType
+object UnitT extends RslType
+case class PairT(t1: RslType, t2: RslType) extends RslType
+case class FuncT(arg: RslType, res: RslType) extends RslType
+case class ParamT(param: String) extends RslType
+case class VarT(count: Int, var inner: Option[RslType]) extends RslType
+
+// case class AnyT
+// case class NothingT
+
 sealed class RslPattern
 
 case class NamedPattern(label: String) extends RslPattern
 case class NumberPattern(value: Int) extends RslPattern
 case class SubscriptPattern(pattern: RslPattern, subscript: RslPattern) extends RslPattern
 
-sealed class RslExp
+case class RslProgram(blocks: List[RslBlock])
+
+sealed class RslBlock
+
+case class Ctor(name: String, fields: Map[String, RslType])
+
+sealed class RslDecl extends RslBlock
+
+case class DataDecl(name: String, ctors: List[Ctor]) extends RslDecl
+//case class FuncDecl(name: String, ) extends RslDecl
+//case class ConstDecl extends RslDecl
+
+sealed class RslExp extends RslBlock
 
 // val a = Square(1, 2)
 // val b = (a, 12, "3")
@@ -105,3 +165,5 @@ trait Rsl:
   def evalEnv (env: Env[RslVal]) (e: RslExp): RslVal
 
   def eval (e: RslExp): RslVal
+
+  def evalProgram(env: Env[RslVal]) (program: RslProgram): List[RslVal]
