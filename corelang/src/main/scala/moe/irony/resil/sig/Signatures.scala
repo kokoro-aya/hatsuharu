@@ -18,31 +18,46 @@ trait Env[A]:
   val backingField: List[(String, A)]
 
 
-case class Environment(types: Env[RslType], variables: Env[RslVal]):
-  
-  def insert(label: String, ty: RslType): Unit = types.insert(label, ty)
-  def insert(label: String, v: RslVal): Unit = variables.insert(label, v)
-  
-  def update(label: String, ty: RslType): Unit = types.update(label) (ty)
-  def update(label: String, v: RslVal): Unit = variables.update(label) (v)
+case class Environment(var types: Env[RslType], var variables: Env[RslVal]):
 
-  def lookupType(label: String): Unit = types.lookup(label)
-  def lookupValue(label: String): Unit = variables.lookup(label)
+  def insert(label: String, ty: RslType): Environment = {
+    types = types.insert(label, ty)
+    this
+  }
+  def insert(label: String, v: RslVal): Environment = {
+    variables = variables.insert(label, v)
+    this
+  }
+
+  def update(label: String, v: RslVal): Environment = {
+    variables = variables.update(label) (v)
+    this
+  }
+
+  def lookupType(label: String): Option[RslType] = types.lookup(label)
+  def lookupValue(label: String): Option[RslVal] = variables.lookup(label)
 
   def lookupTypeByCriteria(label: String) (criteria: (RslType) => Boolean): Option[RslType] =
     types.lookupBy(label) (criteria)
   def lookupValueByCriteria(label: String) (criteria: (RslVal) => Boolean): Option[RslVal] =
     variables.lookupBy(label) (criteria)
 
-  def +++(other: Env[RslType]): Environment =
-    Environment(this.types ++ other, this.variables)
+  def +++(other: Env[RslType]): Environment = {
+    this.types = this.types ++ other
+    this
+  }
 
-  def ++(other: Env[RslVal]): Environment =
-    Environment(this.types, this.variables ++ other)
-    
+  def ++(other: Env[RslVal]): Environment = {
+    this.variables = this.variables ++ other
+    this
+  }
+
   def dumpTypes: String = types.dumpNames
   def dumpValues: String = variables.dumpNames
-  
+
+
+case class Ctor(name: String, fields: Map[String, RslType])
+
 
 trait Op
 
@@ -73,9 +88,11 @@ case class ClosV(env: Env[RslVal], f: RslExp) extends RslVal
 case class PromV(var promVal: Option[RslVal]) extends RslVal
 case class ErrV(errMessage: String) extends RslVal
 
+
 sealed class RslType
 
-case class DataT(name: String) extends RslType
+case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
+case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
 case class RecordT(header: Option[String], types: List[RslType]) extends RslType
 case class ListT() extends RslType
@@ -100,11 +117,12 @@ case class NamedPattern(label: String) extends RslPattern
 case class NumberPattern(value: Int) extends RslPattern
 case class SubscriptPattern(pattern: RslPattern, subscript: RslPattern) extends RslPattern
 
+
 case class RslProgram(blocks: List[RslBlock])
+
 
 sealed class RslBlock
 
-case class Ctor(name: String, fields: Map[String, RslType])
 
 sealed class RslDecl extends RslBlock
 
@@ -164,6 +182,13 @@ trait Rsl:
 
   def evalEnv (env: Env[RslVal]) (e: RslExp): RslVal
 
+  def evalEnv (env: Environment) (b: RslBlock): RslVal
+
+  def evalDecl (env: Environment) (d: RslDecl): Environment
+
+  def evalBlocks (env: Environment) (bs: List[RslBlock]): (Environment, List[RslVal])
+    = (env, bs.foldLeft(List[RslVal]()) { (res, b) => res :+ evalEnv(env)(b) })
+
   def eval (e: RslExp): RslVal
 
-  def evalProgram(env: Env[RslVal]) (program: RslProgram): List[RslVal]
+  def evalProgram (program: RslProgram): List[RslVal]

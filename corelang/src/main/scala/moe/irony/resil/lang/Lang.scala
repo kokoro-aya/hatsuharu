@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, NamedPattern, NumberPattern, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslExp, RslPattern, RslProgram, RslVal, S, Snd, StrV, Struct, Subscript, SubscriptPattern, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, NamedPattern, NumberPattern, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslType, RslVal, S, Snd, StrV, Struct, Subscript, SubscriptPattern, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -241,7 +241,20 @@ class Resil extends Rsl {
       case _ => throw EvalError("[14] snd operation applied to non-pair")
     case AUnit() => UnitV()
 
-  override def evalProgram(env: Env[RslVal])(program: RslProgram): List[RslVal] = ???
+  override def evalEnv(env: Environment)(b: RslBlock): RslVal = b match
+    case decl: RslDecl =>
+      evalDecl(env)(decl)
+      UnitV()
+    case exp: RslExp => evalEnv(env.variables)(exp)
+
+  override def evalDecl(env: Environment)(d: RslDecl): Environment = d match
+    case DataDecl(name, ctors) =>
+      env.lookupType(name) match
+        case Some(_) => throw EvalError("Redeclaration of type " ++ name)
+        case None =>
+          val newType = DataT(name, ctors.map(c => (c.name, c)).toMap)
+          env.insert(name, newType)
+
 
   override def eval(e: RslExp): RslVal =
     try
@@ -250,4 +263,13 @@ class Resil extends Rsl {
       case e: EvalError => ErrV("EvalError: " + e.message)
       case e: Throwable => ErrV(e.getMessage)
     }
+
+  override def evalProgram(program: RslProgram): List[RslVal] =
+    try {
+      evalBlocks(Environment(ResilEnv[RslType](), ResilEnv[RslVal]()))(program.blocks)._2
+    } catch {
+        case e: EvalError => List(ErrV("EvalError: " + e.message))
+        case e: Throwable => List(ErrV(e.getMessage))
+      }
+
 }
