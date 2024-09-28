@@ -33,7 +33,7 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
 }
 
 
-def emptyEnv = ResilEnv[RslExp]()
+def emptyEnv: Env[RslExp] = ResilEnv[RslExp]()
 
 
 class Resil extends Rsl {

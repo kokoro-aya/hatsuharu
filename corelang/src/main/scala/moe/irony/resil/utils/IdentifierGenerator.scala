@@ -12,6 +12,9 @@ class IdentifierGenerator(val radix: Int) {
     return idCount
   }
 
+  def reset = {
+    idCount = 0
+  }
 
   private def makeDigitListFromNat(i: Int, acc: List[Int]): List[Int] =
     if i < 0 then acc
@@ -21,6 +24,10 @@ class IdentifierGenerator(val radix: Int) {
   def joinDigitsToString(xs: List[Int]) =
     xs.zipWithIndex.map { (it, i) => (65 + it).toChar } .mkString
 
+  def nextNum: Int =
+    incrementIdCountAndReturnCurrent
+
   def nextId: String =
     joinDigitsToString(makeDigitListFromNat(incrementIdCountAndReturnCurrent, List()))
+
 }
