@@ -1,11 +1,11 @@
-package moe.irony.resil
+package moe.irony.resil.basic
 
 import moe.irony.resil.lang
 import moe.irony.resil.lang.{Resil, ResilEnv}
 import moe.irony.resil.sig.Logical.LT
 import moe.irony.resil.sig.*
 
-class TestEvaluator extends munit.FunSuite:
+class EvaluatorTest extends munit.FunSuite:
   test("simple if expr") {
     val expr = If (Logop (Logical.LE, I (3), I (4)), I (3), I ( 2))
     val res = Resil().eval(expr)
@@ -19,7 +19,7 @@ class TestEvaluator extends munit.FunSuite:
         ("y", I(2)),
         ("z", Binop(Binary.ADD, Variable("x"), Variable("y")))
       )),
-        Variable("z"))
+      Variable("z"))
     val res = Resil().eval(expr)
     assertEquals(res, IntV(3))
   }
@@ -115,7 +115,7 @@ class TestEvaluator extends munit.FunSuite:
               If(Logop(Logical.LT, Variable("x"), I(10)),
                 Call(Variable("f"), Binop(Binary.ADD, Variable("x"), I(1))),
                 Variable("x")
-            )))
+              )))
           )
         ),
         Call(Variable("f"), I(1)))
@@ -152,13 +152,13 @@ class TestEvaluator extends munit.FunSuite:
             Call(Call(Variable("rect2"), S("perimeter")), AUnit())     // rect2.perimeter == 26
           ),
           Call(Call(Variable("rect2"), S("timesArea")), I(4)))         // rect2.timesArea(4) == 144
-        )
+      )
     val res = Resil().eval(expr)
     assertEquals(res, PairV(PairV(IntV(12), IntV(26)), IntV(144)))
   }
 
   test("more oop") {
-    val expr = 
+    val expr =
       Letrec(
         ResilEnv(
           List(
@@ -168,7 +168,7 @@ class TestEvaluator extends munit.FunSuite:
                   Letrec(
                     ResilEnv(
                       List(("getName", Func("_", Variable("name"))))),
-                      CallDyn(Variable("getter"), AUnit()))))),
+                    CallDyn(Variable("getter"), AUnit()))))),
             ("Cat",
               Func("name",
                 Func("color",
@@ -179,7 +179,7 @@ class TestEvaluator extends munit.FunSuite:
                           ("getName", Func("_", Variable("name"))),
                           ("getColor", Func("_", Variable("color"))),
                         )),
-                        CallDyn(Variable("getter"), AUnit())))))),
+                      CallDyn(Variable("getter"), AUnit())))))),
             ("Animal@name", Func("animal", Call(Variable("animal"), S("getName")))),
             ("Animal@description",
               Func("animal",
@@ -197,7 +197,7 @@ class TestEvaluator extends munit.FunSuite:
             Call(Variable("Animal@name"), Variable("someCat"))
           )))
     val res = Resil().eval(expr)                    // class Cat extends class Animal
-                                                    // var someAnimal = new Animal("Alex")
+    // var someAnimal = new Animal("Alex")
     val expected = PairV(                           // var someCat = new Cat("Bob", color="blue")
       PairV(                                        //
         PairV(StrV("my name is"), StrV("Bob")),     // someAnimal.description() = "My name is " + "Bob"

@@ -1,11 +1,11 @@
-package moe.irony.resil
+package moe.irony.resil.datatypes
+
+import moe.irony.resil.lang.{Resil, ResilEnv}
+import moe.irony.resil.sig.*
 
 import scala.collection.mutable
-import moe.irony.resil.lang.{Resil, ResilEnv}
-import moe.irony.resil.sig.{I, ListV, *}
 
-
-class TestSyntaxEvaluator extends munit.FunSuite:
+class EvaluatorTest extends munit.FunSuite:
   test("simple list") {
     val expr = ReadonlyList(List(I(1), I(2), I(3)))
     val res = Resil().eval(expr)
@@ -51,8 +51,8 @@ class TestSyntaxEvaluator extends munit.FunSuite:
         )),
         Components(List(Variable("a"), Variable("b"), Variable("c")), 3)
       ))
-      val res = Resil().eval(expr)
-      assertEquals(res, TupleV(List(IntV(3), IntV(4), TupleV(List(StrV("foo"), StrV("bar")), 2)), 3))
+    val res = Resil().eval(expr)
+    assertEquals(res, TupleV(List(IntV(3), IntV(4), TupleV(List(StrV("foo"), StrV("bar")), 2)), 3))
   }
 
   test("update array value") {
