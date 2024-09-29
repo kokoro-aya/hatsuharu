@@ -105,6 +105,7 @@ object StrT extends RslType
 object UnitT extends RslType
 case class PairT(t1: RslType, t2: RslType) extends RslType
 case class FuncT(arg: RslType, res: RslType) extends RslType
+// TODO: add comments for intermediate types
 case class ParamT(param: String) extends RslType
 case class VarT(count: Int, var inner: Option[RslType]) extends RslType
 

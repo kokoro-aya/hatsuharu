@@ -52,21 +52,34 @@ class Typing extends ITyping:
         case Some(ity) => typeToString(ity)
         case None => "_"
     }"
+    case _ => throw NotImplementedError("Unknown type " ++ ty.toString)
 
   def optTypeToString (opt: Option[RslType]): String = opt match
     case Some(value) => typeToString(value)
     case None => "_"
 
-
-
-
   def getConstraints (env: Env[RslType]) (exp: RslExp): (RslType, List[(RslType, RslType)]) =
     exp match
-      case Data(header, fields) => ???
-      case Components(values, arity) => ???
-      case Struct(header, values) => ???
-      case ReadonlyList(values) => ???
-      case sig.Array(elements) => ???
+      case Data(ctorName, fields) => ???
+      case Components(values, _) =>
+        val t = newVarType
+        val allConstraints = values.map(getConstraints(env))
+        val ts = allConstraints.map(_._1)
+        val cons = allConstraints.flatMap(_._2)
+        val allCons = (t, TupleT(ts)) :: cons
+        (t, allCons)
+      case Struct(header, values) =>
+        // Do we need to recheck the correspondences of field names and field types?
+        val t = newVarType
+        val allFieldConstraints = values.values.map(getConstraints(env)).toList
+        val ts = allFieldConstraints.map(_._1)
+        val cons = allFieldConstraints.flatMap(_._2)
+        val allCons = (t, RecordT(header, ts)) :: cons
+        (t, allCons)
+      case ReadonlyList(values) =>
+        (ListT(), List()) // Currently untyped
+      case sig.Array(elements) =>
+        (ArrayT(), List()) // Currently untyped
       case Ref(value) => ???
       case Update(assignee, assigned) => ???
       case Subscript(value, subscript) => ???
@@ -108,7 +121,6 @@ class Typing extends ITyping:
         (x2, allCons)
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
-
         val t = newVarType
         val z = (List[((String, RslType), List[(RslType, RslType)])](), emptyEnv)
 
@@ -157,14 +169,30 @@ class Typing extends ITyping:
         val allCons = (t3, PairT(t1, t2)) :: cons
         (newVarType, allCons)
       case AUnit() => (UnitT, List())
+      case _ => throw NotImplementedError("Typing.getConstraint unknown expression: " ++ Resil().showExp(exp))
+      // TODO: split Resil() to several objects to prevent circular dependency
 
   def unify (left: RslType) (right: RslType): Unit = (left, right) match
-    case (DataT(name1, _), DataT(name2, _)) => throw NotImplementedError()
+    case (DataT(name1, fields1), DataT(name2, fields2)) => throw NotImplementedError()
     case (TagT(tag1), TagT(tag2)) => throw NotImplementedError()
-    case (TupleT(types1), TupleT(types2)) => throw NotImplementedError()
-    case (RecordT(header1, types1), RecordT(header2, types2)) => throw NotImplementedError()
-    case (ListT(), ListT()) => throw NotImplementedError()
-    case (ArrayT(), ArrayT()) => throw NotImplementedError()
+    case (TupleT(types1), TupleT(types2)) =>
+      if types1.size != types2.size then
+        throw TypeError("Mismatch tuple sizes")
+      else
+        types1.zip(types2).foreach { (l, r) =>
+          unify (l) (r)
+        }
+    case (RecordT(header1, types1), RecordT(header2, types2)) =>
+      if header1 != header2 then
+        throw TypeError("Mismatch record names")
+      else if types1.size != types2.size then
+        throw TypeError("Mismatch record sizes")
+      else
+        types1.zip(types2).foreach { (l, r) =>
+          unify (l) (r)
+        }
+    case (ListT(), ListT()) => () // Untyped list
+    case (ArrayT(), ArrayT()) => () // Untyped array
     case (RefT(ty1), RefT(ty2)) => throw NotImplementedError()
     case (IntT, IntT) => ()
     case (BoolT, BoolT) => ()
@@ -200,10 +228,10 @@ class Typing extends ITyping:
               // Right side concrete types
               case (ParamT(_), DataT(name, ctors)) => throw NotImplementedError()
               case (ParamT(_), TagT(name)) => throw NotImplementedError()
-              case (ParamT(_), TupleT(types)) => throw NotImplementedError()
-              case (ParamT(_), RecordT(header, types)) => throw NotImplementedError()
-              case (ParamT(_), ListT()) => throw NotImplementedError()
-              case (ParamT(_), ArrayT()) => throw NotImplementedError()
+              case (ParamT(_), TupleT(types)) => r.inner = t2
+              case (ParamT(_), RecordT(header, types)) => r.inner = t2
+              case (ParamT(_), ListT()) => r.inner = t2
+              case (ParamT(_), ArrayT()) => r.inner = t2
               case (ParamT(_), RefT(ty))=> throw NotImplementedError()
               case (ParamT(_), IntT) => r.inner = t2
               case (ParamT(_), BoolT) => r.inner = t2
@@ -214,11 +242,11 @@ class Typing extends ITyping:
               // Left side concrete types
               case (DataT(name, ctors), ParamT(_)) => throw NotImplementedError()
               case (TagT(name), ParamT(_)) => throw NotImplementedError()
-              case (TupleT(types), ParamT(_)) => throw NotImplementedError()
-              case (RecordT(header, types), ParamT(_)) => throw NotImplementedError()
-              case (ListT(), ParamT(_)) => throw NotImplementedError()
-              case (ArrayT(), ParamT(_)) => throw NotImplementedError()
-              case (RefT(ty), ParamT(_))=> throw NotImplementedError()
+              case (TupleT(types), ParamT(_)) => s.inner = t1
+              case (RecordT(header, types), ParamT(_)) => s.inner = t1
+              case (ListT(), ParamT(_)) => s.inner = t1
+              case (ArrayT(), ParamT(_)) => s.inner = t1
+              case (RefT(ty), ParamT(_)) => throw NotImplementedError()
               case (IntT, ParamT(_)) => s.inner = t1
               case (BoolT, ParamT(_)) => s.inner = t1
               case (StrT, ParamT(_)) => s.inner = t1
@@ -256,10 +284,12 @@ class Typing extends ITyping:
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
     case DataT(name, ctors) => throw NotImplementedError()
     case TagT(name) => throw NotImplementedError()
-    case TupleT(types) => throw NotImplementedError()
-    case RecordT(header, types) => throw NotImplementedError()
-    case ListT() => throw NotImplementedError()
-    case ArrayT() => throw NotImplementedError()
+    case TupleT(types) =>
+      types.map(containsType(_)(inner)).reduce(_ || _)
+    case RecordT(_, types) =>
+      types.map(containsType(_)(inner)).reduce(_ || _)
+    case ListT() => false // untyped
+    case ArrayT() => false // untyped
     case RefT(ty) => throw NotImplementedError()
     case IntT => false
     case BoolT => false
@@ -279,14 +309,17 @@ class Typing extends ITyping:
     case ParamT(par) => inner match
       case ParamT(p2) => par == p2
       case _ => false
+    case _ => throw NotImplementedError("Typing.containsType called on unknown outer type: " ++ typeToString(outer))
 
   override def resolve(typ: RslType): RslType = typ match
     case DataT(name, ctors) => throw NotImplementedError()
     case TagT(name) => throw NotImplementedError()
-    case TupleT(types) => throw NotImplementedError()
-    case RecordT(header, types) => throw NotImplementedError()
-    case ListT() => throw NotImplementedError()
-    case ArrayT() => throw NotImplementedError()
+    case TupleT(types) =>
+      TupleT(types.map(resolve))
+    case RecordT(header, types) =>
+      RecordT(header, types.map(resolve))
+    case ListT() => ListT() // untyped
+    case ArrayT() => ArrayT() // untyped
     case RefT(ty) => throw NotImplementedError()
     case IntT => IntT
     case BoolT => BoolT
@@ -301,6 +334,7 @@ class Typing extends ITyping:
         v.inner = Some(newPara)
         newPara
     case ParamT(_) => typ
+    case _ => throw NotImplementedError("Typing.resolve called on unknown type: " ++ typeToString(typ))
 
   override def typecheck(exp: RslExp): Unit =
     try
