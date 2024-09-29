@@ -85,7 +85,7 @@ case class StrV(value: String) extends RslVal
 case class PairV(first: RslVal, second: RslVal) extends RslVal
 case class UnitV() extends RslVal
 case class ClosV(env: Env[RslVal], f: RslExp) extends RslVal
-case class PromV(var promVal: Option[RslVal]) extends RslVal
+case class PromV(var promVal: Option[RslVal]) extends RslVal // Todo: rename this to something else to free "promise" primitve
 case class ErrV(errMessage: String) extends RslVal
 
 
