@@ -144,9 +144,7 @@ sealed class RslExp extends RslBlock
 //     f := 4
 
 case class Data(header: String, fields: List[RslExp]) extends RslExp
-case class Components(values: List[RslExp], arity: Int) extends RslExp
 case class Struct(header: Option[String], values: Map[String, RslExp]) extends RslExp
-case class ReadonlyList(values: List[RslExp]) extends RslExp
 case class Array(var elements: mutable.ArraySeq[RslExp]) extends RslExp
 case class Ref(value: RslExp) extends RslExp
 case class Update(assignee: RslExp, assigned: RslExp) extends RslExp 
@@ -167,6 +165,14 @@ case class Pair(first: RslExp, second: RslExp) extends RslExp
 case class IsAPair(value: RslExp) extends RslExp
 case class Fst(value: RslExp) extends RslExp
 case class Snd(value: RslExp) extends RslExp
+case class Components(values: List[RslExp], arity: Int) extends RslExp
+case class NthComponent(values: RslExp, pos: RslExp) extends RslExp
+case class AList(values: List[RslExp]) extends RslExp
+case class Head(value: RslExp) extends RslExp
+case class Tail(value: RslExp) extends RslExp
+case class Nth(coll: RslExp, idx: RslExp) extends RslExp
+case class Size(value: RslExp) extends RslExp
+case class IsEmpty(value: RslExp) extends RslExp
 case class AUnit() extends RslExp
 
 

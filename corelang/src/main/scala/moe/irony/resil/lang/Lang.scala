@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, ListV, Logical, Logop, NamedPattern, NumberPattern, Pair, PairV, PromV, ReadonlyList, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslType, RslVal, S, Snd, StrV, Struct, Subscript, SubscriptPattern, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedPattern, Nth, NthComponent, NumberPattern, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, SubscriptPattern, Tail, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -45,7 +45,7 @@ class Resil extends Rsl {
       "(" ++ values.map(showExp).mkString(", ") ++ ")"
     case Struct(header, values) =>
       header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ showExp(v) }.mkString(", ") ++ " }"
-    case ReadonlyList(values) =>
+    case AList(values) =>
       "[" ++ values.map(showExp).mkString(",") ++ "]"
     case Array(elements) =>
       "Array(" ++ elements.map(showExp).mkString(",") ++ ")"
@@ -123,12 +123,8 @@ class Resil extends Rsl {
   override def evalEnv(env: Env[RslVal])(e: RslExp): RslVal = e match
     case Data(header, fields) =>
       throw EvalError("Custom ADT not supported yet")
-    case Components(values, arity) =>
-      TupleV(values.map { v => evalEnv(env)(v)}, arity)
     case Struct(header, values) =>
       RecordV(header, values = values.map { (k, v) => (k, evalEnv(env)(v)) })
-    case ReadonlyList(values) =>
-      ListV(values.map { v => evalEnv(env)(v) })
     case Array(elements) =>
       ArrayV(elements.map { v => evalEnv(env)(v) }, elements.size)
     case Ref(value) =>
@@ -239,6 +235,35 @@ class Resil extends Rsl {
     case Snd(value) => evalEnv(env)(value) match
       case PairV(_, e2) => e2
       case _ => throw EvalError("[14] snd operation applied to non-pair")
+    case Components(values, arity) =>
+      TupleV(values.map { v => evalEnv(env)(v)}, arity)
+    case NthComponent(values, pos) => (evalEnv(env)(values), evalEnv(env)(pos)) match
+      case (TupleV(values, _), IntV(i)) =>
+        values(i)
+      case _ => throw EvalError("nth-component operation applied to non-tuple")
+    case AList(values) =>
+      ListV(values.map { v => evalEnv(env)(v) })
+    case Head(list) => evalEnv(env)(list) match
+      case ListV(values) =>
+        if values.isEmpty then throw EvalError("List out of bound: position 0 of 0")
+        else values.head
+      case _ => throw EvalError("Unsupported head operation on unknown type")
+    case Tail(list) => evalEnv(env)(list) match
+      case ListV(values) =>
+        if values.isEmpty then throw EvalError("List out of bound: position -1 of 0")
+        else values.last
+      case _ => throw EvalError("Unsupported tail operation on unknown type")
+    case Nth(coll, idx) => (evalEnv(env)(coll), evalEnv(env)(idx)) match
+      case (ListV(values), IntV(i)) =>
+        if i < 0 || i >= values.size then throw EvalError(s"List out of bound: position $i of ${values.size}")
+        else values(i)
+      case _ => throw EvalError("Unsupported nth operation on unknown type")
+    case Size(list) => evalEnv(env)(list) match
+      case ListV(values) => IntV(values.size)
+      case _ => throw EvalError("Unsupported size operation on unknown type")
+    case IsEmpty(list) => evalEnv(env)(list) match
+      case ListV(values) => BoolV(values.isEmpty)
+      case _ => throw EvalError("Unsupported isEmpty operation on unknown type")
     case AUnit() => UnitV()
 
   override def evalEnv(env: Environment)(b: RslBlock): RslVal = b match
