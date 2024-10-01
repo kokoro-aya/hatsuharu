@@ -1,12 +1,12 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, ReadonlyList, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable}
+import moe.irony.resil.sig.{AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, AList, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable}
 import moe.irony.resil.utils.IdentifierGenerator
 
 trait ITyping:
   def resolve(typ: RslType): RslType
-  def typecheck (exp: RslExp): Unit
+  def typecheck (exp: RslExp): Either[String, RslType]
 
 class Typing extends ITyping:
 
@@ -76,7 +76,7 @@ class Typing extends ITyping:
         val cons = allFieldConstraints.flatMap(_._2)
         val allCons = (t, RecordT(header, ts)) :: cons
         (t, allCons)
-      case ReadonlyList(values) =>
+      case AList(values) =>
         (ListT(), List()) // Currently untyped
       case sig.Array(elements) =>
         (ArrayT(), List()) // Currently untyped
@@ -93,14 +93,13 @@ class Typing extends ITyping:
         val t = newVarType
         val (t1, cons1) = getConstraints(env)(left)
         val (t2, cons2) = getConstraints(env)(right)
-        val allCons = (t, t1) :: (t1, t2) :: (t2, IntT) :: (cons1 ++ cons2)
+        val allCons = (t, IntT) :: (t1, IntT) :: (t2, IntT) :: (cons1 ++ cons2)
         (t, allCons)
       case Logop(op, left, right) =>
-        val t = newVarType
         val (t1, cons1) = getConstraints (env) (left)
         val (t2, cons2) = getConstraints (env) (right)
-        val allCons = (t, BoolT) :: (t1, t2) :: (cons1 ++ cons2)
-        (t, allCons)
+        val allCons = (t1, t2) :: (cons1 ++ cons2)
+        (BoolT, allCons)
       case If(cond, caseTrue, caseElse) =>
         val t = newVarType
         val (t1, cons1) = getConstraints (env) (cond)
@@ -114,11 +113,11 @@ class Typing extends ITyping:
         (FuncT(t1, t2), cons)
       case Call(funExp, actual) =>
         val x1 = newVarType
-        val x2 = newVarType
+//        val x2 = newVarType
         val (t1, cons1) = getConstraints (env) (funExp)
         val (t2, cons2) = getConstraints (env) (actual)
-        val allCons = (t1, FuncT(x1, x2)) :: (t2, x1) :: (cons1 ++ cons2)
-        (x2, allCons)
+        val allCons = (t1, FuncT(t2, x1)) :: (cons1 ++ cons2)
+        (x1, allCons)
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
         val t = newVarType
@@ -161,13 +160,13 @@ class Typing extends ITyping:
         val t2 = newVarType
         val (t3, cons) = getConstraints (env) (value)
         val allCons = (t3, PairT(t1, t2)) :: cons
-        (newVarType, allCons)
+        (t1, allCons)
       case Snd(value) =>
         val t1 = newVarType
         val t2 = newVarType
         val (t3, cons) = getConstraints (env) (value)
         val allCons = (t3, PairT(t1, t2)) :: cons
-        (newVarType, allCons)
+        (t2, allCons)
       case AUnit() => (UnitT, List())
       case _ => throw NotImplementedError("Typing.getConstraint unknown expression: " ++ Resil().showExp(exp))
       // TODO: split Resil() to several objects to prevent circular dependency
@@ -280,7 +279,6 @@ class Typing extends ITyping:
     case _ =>
       throw TypeError("Type check error with" ++ typeToString(left) ++ " and " ++ typeToString(right))
 
-
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
     case DataT(name, ctors) => throw NotImplementedError()
     case TagT(name) => throw NotImplementedError()
@@ -336,7 +334,7 @@ class Typing extends ITyping:
     case ParamT(_) => typ
     case _ => throw NotImplementedError("Typing.resolve called on unknown type: " ++ typeToString(typ))
 
-  override def typecheck(exp: RslExp): Unit =
+  override def typecheck(exp: RslExp): Either[String, RslType] =
     try
       val (t, cons) = getConstraints(emptyEnv)(exp)
       cons.reverse.foreach { (l, r) => unify(l)(r) }
@@ -344,8 +342,13 @@ class Typing extends ITyping:
       resetParamType()
       resetVarType()
       println("Type inferred: [" ++ typeToString(typ) ++ "]")
+      Right(typ)
     catch
-      case e: TypeError => println("Type check failed, reason: " ++ e.message)
-      case e: Throwable => println(e.getMessage)
+      case e: TypeError =>
+        println("Type check failed, reason: " ++ e.message)
+        Left(e.message)
+      case e: Throwable =>
+        println(e.getMessage)
+        Left(e.getMessage)
 
 class TypeError(val message: String) extends Exception(message)
