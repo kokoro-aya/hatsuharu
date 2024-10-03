@@ -1,60 +1,40 @@
 package moe.irony.resil
 
-import moe.irony.resil.lang.{Resil, ResilEnv}
-import moe.irony.resil.sig.{Ctor, DataDecl, Environment, IntT, IntV, ParamT, RslType, RslVal, TagT, VarT}
+import moe.irony.resil.lang.{Resil, ResilEnv, Typing}
+import moe.irony.resil.sig.Binary.{ADD, MULT}
+import moe.irony.resil.sig.{AList, AUnit, Binop, Call, Ctor, DataDecl, Environment, Func, I, IntT, IntV, Letrec, Nth, Pair, ParamT, RslExp, RslType, RslVal, S, Size, Snd, TagT, VarT, Variable}
+
+
+def mkEnv(bindings: (String, RslExp)*): ResilEnv[RslExp] = {
+  ResilEnv[RslExp](bindings.toList)
+}
 
 @main
 def main(): Unit = {
 
-  val evalDecl = (d: DataDecl) => Resil().evalDecl(Environment(ResilEnv[RslType](), ResilEnv[RslVal]()))(d)
-
-  val decl1 = evalDecl(DataDecl("Shape",
-    List(
-      Ctor("Square", Map("size" -> IntT)),
-      Ctor("Circle", Map("perimeter" -> IntT)),
-      Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT)),
-      Ctor("Diamond", Map("size" -> IntT, "angle" -> IntT))
-    )))
-
-  val decl2 = evalDecl(DataDecl("Animal",
-    List(
-      Ctor("Square", Map("size" -> IntT)),
-      Ctor("Circle", Map("perimeter" -> IntT)),
-      Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT)),
-      Ctor("Diamond", Map("size" -> IntT, "angle" -> IntT))
-    )))
-
-
-  val decl3 = evalDecl(DataDecl("Animal",
-    List(
-      Ctor("Square", Map("size" -> IntT)),
-      Ctor("Circle", Map("perimeter" -> IntT)),
-      Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT)),
-      Ctor("Diamond", Map("size" -> IntT, "angle" -> IntT))
-    )))
-
-  val evalBlocks = Resil().evalBlocks(Environment(ResilEnv[RslType](), ResilEnv[RslVal]()))
-
-  val blocks = evalBlocks(List(
-    DataDecl("Nat",
-      List(
-        Ctor("S", Map("" -> TagT("Nat"))),
-        Ctor("O", Map())
-      )
+  val letrec5 = Letrec(
+    mkEnv(
+      ("f", Func("x", Binop(ADD, Variable("x"), I(1)))),
+      ("g", Func("x", Binop(MULT, Variable("x"), I(2)))),
+      ("z", I(3))
     ),
-    DataDecl("Bool",
-      List(
-        Ctor("True", Map()),
-        Ctor("False", Map())
-      )
-    ),
-    DataDecl("Data",
-      List(
-        Ctor("NatData", Map("value" -> TagT("Nat"))),
-        Ctor("BoolData", Map("value" -> TagT("Bool")))
-      )
-    ),
-  ))
+    (Call(Variable("f"), Call(Variable("g"), Variable("z"))))
+  )
 
-  println("done.")
+//  val exp5 = Call(Func("x", Binop(ADD, Variable("x"), I(1))),
+//    Call(Func("x", Binop(MULT, Variable("x"), I(2))), I(3)))
+  val ty1 = Typing().typecheck(letrec5)
+//  val ty2 = Typing().typecheck(exp5)
+
+  println(ty1)
+//  println(ty2)
 }
+
+/*
+      f : 'a -> 'b
+
+      double : f f x
+
+      (f x) : 'b
+      f (f x) : 'a -> 'b
+ */

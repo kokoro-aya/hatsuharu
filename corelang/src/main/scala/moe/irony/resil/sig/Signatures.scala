@@ -95,8 +95,8 @@ case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
 case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
 case class RecordT(header: Option[String], types: List[RslType]) extends RslType
-case class ListT() extends RslType
-case class ArrayT() extends RslType
+case class ListT(inner: RslType) extends RslType
+case class ArrayT(inner: RslType) extends RslType
 case class RefT(ty: RslType) extends RslType
 
 object IntT extends RslType
@@ -132,6 +132,8 @@ case class DataDecl(name: String, ctors: List[Ctor]) extends RslDecl
 //case class ConstDecl extends RslDecl
 
 sealed class RslExp extends RslBlock
+
+// TODO: add Lazy construct
 
 // val a = Square(1, 2)
 // val b = (a, 12, "3")

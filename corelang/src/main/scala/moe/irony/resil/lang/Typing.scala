@@ -37,8 +37,8 @@ class Typing extends ITyping:
       case Some(value) => s"$value "
       case None => ""
       ) ++ s"{ ${types.map(typeToString).mkString(", ")} }"
-    case ListT() => "list"
-    case ArrayT() => "array"
+    case ListT(ty) => "list[" ++ typeToString(ty) ++ "]"
+    case ArrayT(ty) => "array[" ++ typeToString(ty) ++ "]"
     case RefT(ty) => s"&${typeToString(ty)}"
     case IntT => "int"
     case BoolT => "bool"
@@ -58,12 +58,12 @@ class Typing extends ITyping:
     case Some(value) => typeToString(value)
     case None => "_"
 
-  def getConstraints (env: Env[RslType]) (exp: RslExp): (RslType, List[(RslType, RslType)]) =
+  def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
     exp match
       case Data(ctorName, fields) => ???
       case Components(values, _) =>
         val t = newVarType
-        val allConstraints = values.map(getConstraints(env))
+        val allConstraints = values.map(getConstraints(env)(_)(outerCons))
         val ts = allConstraints.map(_._1)
         val cons = allConstraints.flatMap(_._2)
         val allCons = (t, TupleT(ts)) :: cons
@@ -71,15 +71,17 @@ class Typing extends ITyping:
       case Struct(header, values) =>
         // Do we need to recheck the correspondences of field names and field types?
         val t = newVarType
-        val allFieldConstraints = values.values.map(getConstraints(env)).toList
+        val allFieldConstraints = values.values.map(getConstraints(env)(_)(outerCons)).toList
         val ts = allFieldConstraints.map(_._1)
         val cons = allFieldConstraints.flatMap(_._2)
         val allCons = (t, RecordT(header, ts)) :: cons
         (t, allCons)
       case AList(values) =>
-        (ListT(), List()) // Currently untyped
+        throw NotImplementedError("TODO: Typed list not implemented yet")
+        // (ListT(), List()) // Currently untyped
       case sig.Array(elements) =>
-        (ArrayT(), List()) // Currently untyped
+        throw NotImplementedError("TODO: Typed array not implemented yet")
+        // (ArrayT(), List()) // Currently untyped
       case Ref(value) => ???
       case Update(assignee, assigned) => ???
       case Subscript(value, subscript) => ???
@@ -91,32 +93,33 @@ class Typing extends ITyping:
         case None => throw TypeError("Unknown variable " ++ label)
       case Binop(op, left, right) =>
         val t = newVarType
-        val (t1, cons1) = getConstraints(env)(left)
-        val (t2, cons2) = getConstraints(env)(right)
+        val (t1, cons1) = getConstraints(env)(left)(outerCons)
+        val (t2, cons2) = getConstraints(env)(right)(outerCons)
         val allCons = (t, IntT) :: (t1, IntT) :: (t2, IntT) :: (cons1 ++ cons2)
         (t, allCons)
       case Logop(op, left, right) =>
-        val (t1, cons1) = getConstraints (env) (left)
-        val (t2, cons2) = getConstraints (env) (right)
+        val (t1, cons1) = getConstraints (env) (left)(outerCons)
+        val (t2, cons2) = getConstraints (env) (right)(outerCons)
         val allCons = (t1, t2) :: (cons1 ++ cons2)
         (BoolT, allCons)
       case If(cond, caseTrue, caseElse) =>
         val t = newVarType
-        val (t1, cons1) = getConstraints (env) (cond)
-        val (t2, cons2) = getConstraints (env) (caseTrue)
-        val (t3, cons3) = getConstraints (env) (caseElse)
+        val (t1, cons1) = getConstraints (env) (cond) (outerCons)
+        val (t2, cons2) = getConstraints (env) (caseTrue) (outerCons)
+        val (t3, cons3) = getConstraints (env) (caseElse) (outerCons)
         val allCons = (t, t2) :: (t, t3) :: (t2, t3) :: (t1, BoolT) :: (cons1 ++ cons2 ++ cons3)
         (t, allCons)
       case Func(arg, body) =>
         val t1 = newVarType
-        val (t2, cons) = getConstraints (env.insert(arg, t1)) (body)
+        val (t2, cons) = getConstraints (env.insert(arg, t1)) (body) (outerCons)
         (FuncT(t1, t2), cons)
       case Call(funExp, actual) =>
         val x1 = newVarType
 //        val x2 = newVarType
-        val (t1, cons1) = getConstraints (env) (funExp)
-        val (t2, cons2) = getConstraints (env) (actual)
+        val (t1, cons1) = getConstraints (env) (funExp) (outerCons)
+        val (t2, cons2) = getConstraints (env) (actual) (outerCons)
         val allCons = (t1, FuncT(t2, x1)) :: (cons1 ++ cons2)
+        (allCons ++ outerCons).reverse.foreach(unify(_)(_))
         (x1, allCons)
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
@@ -127,7 +130,7 @@ class Typing extends ITyping:
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
           val (s, v) = sv
           val (acc, envs) = zr
-          val (ty, list) = getConstraints(envs)(v)
+          val (ty, list) = getConstraints(envs)(v) (outerCons)
           val newVar = newVarType
           val constraints = ((s, ty), (ty, newVar) :: list) :: acc
           val newEnv: Env[RslType] = envs.insert(s, ty)
@@ -137,34 +140,58 @@ class Typing extends ITyping:
         val newEnv = uncheckedEnvs ++ env
         val newCons = consList.foldLeft(List[(RslType, RslType)]()) { (accCons, _cx) =>
           val (_, cx) = _cx
-          cx ++ accCons
+//          cx ++ accCons
+           accCons ++ cx
         }
 
-        val (t1, cons1) = getConstraints (newEnv) (body)
+        val (t1, cons1) = getConstraints (newEnv) (body) (newCons)
         val allCons = (t, t1) :: cons1 ++ newCons
         (t, allCons)
+//        val t = newVarType
+//
+//        // Step 1: Create initial environment with placeholders for all recursive variables
+//        val initialEnv = assigns.backingField.foldLeft(env) { (envAcc, sv) =>
+//          val (s, v) = sv
+//          envAcc.insert(s, newVarType) // Insert a fresh type variable for each recursive function
+//        }
+//
+//        // Step 2: Now generate constraints for each definition in the assigns
+//        val (consList, newEnv) = assigns.backingField.foldLeft((List[(RslType, RslType)](), initialEnv)) { (acc, sv) =>
+//          val (s, v) = sv
+//          val (accCons, envs) = acc
+//          val (ty, list) = getConstraints(envs)(v) // Generate constraints for each recursive definition
+//          val funcType = envs.lookup(s).getOrElse(ty) // Lookup the function's placeholder type
+//          ((ty, funcType) :: list ++ accCons, envs.insert(s, ty)) // Accumulate constraints
+//        }
+//
+//        // Step 3: Generate constraints for the body expression
+//        val (t1, cons1) = getConstraints(newEnv)(body)
+//
+//        // Combine all constraints and return the result
+//        val allCons = (t, t1) :: cons1 ++ consList
+//        (t, allCons)
       case Pair(first, second) =>
         val t = newVarType
-        val (t2, cons1) = getConstraints (env) (first)
-        val (t3, cons2) = getConstraints (env) (second)
+        val (t2, cons1) = getConstraints (env) (first) (outerCons)
+        val (t3, cons2) = getConstraints (env) (second) (outerCons)
         val allCons = (t, PairT(t2, t3)) :: cons1 ++ cons2
         (t, allCons)
       case IsAPair(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value)
+        val (t3, cons) = getConstraints (env) (value) (outerCons)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (BoolT, allCons)
       case Fst(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value)
+        val (t3, cons) = getConstraints (env) (value) (outerCons)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (t1, allCons)
       case Snd(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value)
+        val (t3, cons) = getConstraints (env) (value) (outerCons)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (t2, allCons)
       case AUnit() => (UnitT, List())
@@ -190,8 +217,14 @@ class Typing extends ITyping:
         types1.zip(types2).foreach { (l, r) =>
           unify (l) (r)
         }
-    case (ListT(), ListT()) => () // Untyped list
-    case (ArrayT(), ArrayT()) => () // Untyped array
+    case (ListT(ty1), ListT(ty2)) => 
+      if ty1 == ty2 then ()
+      else
+        throw TypeError("List inner types mismatch")
+    case (ArrayT(ty1), ArrayT(ty2)) =>
+      if ty1 == ty2 then ()
+      else
+        throw TypeError("Array inner types mismatch")
     case (RefT(ty1), RefT(ty2)) => throw NotImplementedError()
     case (IntT, IntT) => ()
     case (BoolT, BoolT) => ()
@@ -229,8 +262,8 @@ class Typing extends ITyping:
               case (ParamT(_), TagT(name)) => throw NotImplementedError()
               case (ParamT(_), TupleT(types)) => r.inner = t2
               case (ParamT(_), RecordT(header, types)) => r.inner = t2
-              case (ParamT(_), ListT()) => r.inner = t2
-              case (ParamT(_), ArrayT()) => r.inner = t2
+              case (ParamT(_), ListT(_)) => r.inner = t2
+              case (ParamT(_), ArrayT(_)) => r.inner = t2
               case (ParamT(_), RefT(ty))=> throw NotImplementedError()
               case (ParamT(_), IntT) => r.inner = t2
               case (ParamT(_), BoolT) => r.inner = t2
@@ -243,8 +276,8 @@ class Typing extends ITyping:
               case (TagT(name), ParamT(_)) => throw NotImplementedError()
               case (TupleT(types), ParamT(_)) => s.inner = t1
               case (RecordT(header, types), ParamT(_)) => s.inner = t1
-              case (ListT(), ParamT(_)) => s.inner = t1
-              case (ArrayT(), ParamT(_)) => s.inner = t1
+              case (ListT(_), ParamT(_)) => s.inner = t1
+              case (ArrayT(_), ParamT(_)) => s.inner = t1
               case (RefT(ty), ParamT(_)) => throw NotImplementedError()
               case (IntT, ParamT(_)) => s.inner = t1
               case (BoolT, ParamT(_)) => s.inner = t1
@@ -286,8 +319,8 @@ class Typing extends ITyping:
       types.map(containsType(_)(inner)).reduce(_ || _)
     case RecordT(_, types) =>
       types.map(containsType(_)(inner)).reduce(_ || _)
-    case ListT() => false // untyped
-    case ArrayT() => false // untyped
+    case ListT(ty) => containsType(ty)(inner)
+    case ArrayT(ty) => containsType(ty)(inner)
     case RefT(ty) => throw NotImplementedError()
     case IntT => false
     case BoolT => false
@@ -316,8 +349,8 @@ class Typing extends ITyping:
       TupleT(types.map(resolve))
     case RecordT(header, types) =>
       RecordT(header, types.map(resolve))
-    case ListT() => ListT() // untyped
-    case ArrayT() => ArrayT() // untyped
+    case ListT(ty) => ListT(resolve(ty))
+    case ArrayT(ty) => ArrayT(resolve(ty))
     case RefT(ty) => throw NotImplementedError()
     case IntT => IntT
     case BoolT => BoolT
@@ -336,7 +369,7 @@ class Typing extends ITyping:
 
   override def typecheck(exp: RslExp): Either[String, RslType] =
     try
-      val (t, cons) = getConstraints(emptyEnv)(exp)
+      val (t, cons) = getConstraints(emptyEnv) (exp) (List())
       cons.reverse.foreach { (l, r) => unify(l)(r) }
       val typ = resolve(t)
       resetParamType()
