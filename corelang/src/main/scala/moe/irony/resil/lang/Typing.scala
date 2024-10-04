@@ -4,6 +4,8 @@ import moe.irony.resil.sig
 import moe.irony.resil.sig.{AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, AList, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable}
 import moe.irony.resil.utils.IdentifierGenerator
 
+import Console.{RED, BLUE, RESET}
+
 trait ITyping:
   def resolve(typ: RslType): RslType
   def typecheck (exp: RslExp): Either[String, RslType]
@@ -76,12 +78,20 @@ class Typing extends ITyping:
         val cons = allFieldConstraints.flatMap(_._2)
         val allCons = (t, RecordT(header, ts)) :: cons
         (t, allCons)
-      case AList(values) =>
-        throw NotImplementedError("TODO: Typed list not implemented yet")
-        // (ListT(), List()) // Currently untyped
+      case AList(exps) =>
+        val t = newVarType
+        val allFieldConstraints = exps.map(getConstraints(env)(_)(outerCons)).toList
+        val allCons = allFieldConstraints.map(_._1).map((t, _)) ++ allFieldConstraints.flatMap(_._2)
+        // Solve constraints and stop propagation
+        (allCons ++ outerCons).reverse.foreach(unify(_)(_))
+        (ListT(t), List())
       case sig.Array(elements) =>
-        throw NotImplementedError("TODO: Typed array not implemented yet")
-        // (ArrayT(), List()) // Currently untyped
+        val t = newVarType
+        val allFieldConstraints = elements.map(getConstraints(env)(_)(outerCons)).toList
+        val allCons = allFieldConstraints.map(_._1).map((t, _)) ++ allFieldConstraints.flatMap(_._2)
+          // Solve constraints and stop propagation
+        (allCons ++ outerCons).reverse.foreach(unify(_)(_))
+        (ArrayT(t), List())
       case Ref(value) => ???
       case Update(assignee, assigned) => ???
       case Subscript(value, subscript) => ???
@@ -115,12 +125,12 @@ class Typing extends ITyping:
         (FuncT(t1, t2), cons)
       case Call(funExp, actual) =>
         val x1 = newVarType
-//        val x2 = newVarType
         val (t1, cons1) = getConstraints (env) (funExp) (outerCons)
         val (t2, cons2) = getConstraints (env) (actual) (outerCons)
         val allCons = (t1, FuncT(t2, x1)) :: (cons1 ++ cons2)
+        // Solve constraints and stop propagation
         (allCons ++ outerCons).reverse.foreach(unify(_)(_))
-        (x1, allCons)
+        (x1, List())
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
         val t = newVarType
@@ -136,40 +146,14 @@ class Typing extends ITyping:
           val newEnv: Env[RslType] = envs.insert(s, ty)
           (constraints, newEnv)
         }
-
         val newEnv = uncheckedEnvs ++ env
         val newCons = consList.foldLeft(List[(RslType, RslType)]()) { (accCons, _cx) =>
           val (_, cx) = _cx
-//          cx ++ accCons
            accCons ++ cx
         }
-
         val (t1, cons1) = getConstraints (newEnv) (body) (newCons)
         val allCons = (t, t1) :: cons1 ++ newCons
         (t, allCons)
-//        val t = newVarType
-//
-//        // Step 1: Create initial environment with placeholders for all recursive variables
-//        val initialEnv = assigns.backingField.foldLeft(env) { (envAcc, sv) =>
-//          val (s, v) = sv
-//          envAcc.insert(s, newVarType) // Insert a fresh type variable for each recursive function
-//        }
-//
-//        // Step 2: Now generate constraints for each definition in the assigns
-//        val (consList, newEnv) = assigns.backingField.foldLeft((List[(RslType, RslType)](), initialEnv)) { (acc, sv) =>
-//          val (s, v) = sv
-//          val (accCons, envs) = acc
-//          val (ty, list) = getConstraints(envs)(v) // Generate constraints for each recursive definition
-//          val funcType = envs.lookup(s).getOrElse(ty) // Lookup the function's placeholder type
-//          ((ty, funcType) :: list ++ accCons, envs.insert(s, ty)) // Accumulate constraints
-//        }
-//
-//        // Step 3: Generate constraints for the body expression
-//        val (t1, cons1) = getConstraints(newEnv)(body)
-//
-//        // Combine all constraints and return the result
-//        val allCons = (t, t1) :: cons1 ++ consList
-//        (t, allCons)
       case Pair(first, second) =>
         val t = newVarType
         val (t2, cons1) = getConstraints (env) (first) (outerCons)
@@ -310,7 +294,7 @@ class Typing extends ITyping:
       then ()
       else throw TypeError("Param clash with " ++ s1 ++ " and " ++ s2)
     case _ =>
-      throw TypeError("Type check error with" ++ typeToString(left) ++ " and " ++ typeToString(right))
+      throw TypeError("Type check error with " ++ RED ++ typeToString(left) ++ RESET ++ " and " ++ RED ++ typeToString(right) ++ RESET)
 
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
     case DataT(name, ctors) => throw NotImplementedError()
@@ -374,7 +358,7 @@ class Typing extends ITyping:
       val typ = resolve(t)
       resetParamType()
       resetVarType()
-      println("Type inferred: [" ++ typeToString(typ) ++ "]")
+      println("Type inferred: [ " ++ BLUE ++ typeToString(typ) ++ RESET ++ " ]")
       Right(typ)
     catch
       case e: TypeError =>
