@@ -74,12 +74,35 @@ def main(): Unit = {
 
   ))
 
-  Typing().typecheck(expOK)
-  Typing().typecheck(expFnList)
-  Typing().typecheck(sig.Array(mutable.ArraySeq(
+  val arrayExps = sig.Array(mutable.ArraySeq(
     Func("f", Func("g", Func("x", Call(Variable("f"), Call(Variable("f"), Call(Variable("g"), Variable("x"))))))),
     Func("f", Func("g", Variable("g")))
-  )))
+  ))
 
-  Typing().typecheck(sig.Struct(Some("Student"), Map("mark" -> I(4), "grade" -> S("A"))))
+  val record = sig.Struct(Some("Student"), Map("mark" -> I(4), "grade" -> S("A")))
+
+
+  println(Resil().showExp(expWrong1))
+  Typing().typecheck(expWrong1)
+  println()
+
+  println(Resil().showExp(expWrong2))
+  Typing().typecheck(expWrong2)
+  println()
+
+  println(Resil().showExp(expOK))
+  Typing().typecheck(expOK)
+  println()
+
+  println(Resil().showExp(expFnList))
+  Typing().typecheck(expFnList)
+  println()
+
+  println(Resil().showExp(arrayExps))
+  Typing().typecheck(arrayExps)
+  println()
+
+  println(Resil().showExp(record))
+  Typing().typecheck(record)
+  println()
 }

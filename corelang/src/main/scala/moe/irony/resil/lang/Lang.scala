@@ -46,23 +46,28 @@ class Resil extends Rsl {
     case Struct(header, values) =>
       header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ showExp(v) }.mkString(", ") ++ " }"
     case AList(values) =>
-      "[" ++ values.map(showExp).mkString(",") ++ "]"
+      "[" ++ values.map(showExp).mkString(", ") ++ "]"
     case Array(elements) =>
-      "Array(" ++ elements.map(showExp).mkString(",") ++ ")"
-    case Ref(value) => f"Ref(${showExp(value)})"
-    case Update(assignee, assigned) => f"${showExp(assignee)} := ${showExp(assigned)}"
-    case Subscript(value, subscript) => f"${showExp(value)}[${showExp(subscript)}]"
-    case I(value) => f"Int($value)"
-    case B(value) => f"Bool($value)"
-    case S(value) => f"Str($value)"
-    case Variable(label) => f"Var($label)"
-    case Binop(_, _, _) => "Binop"
-    case Logop(_, _, _) => "Logop"
+      "Array( " ++ elements.map(showExp).mkString(", ") ++ " )"
+    case Ref(value) => s"Ref(${showExp(value)})"
+    case Update(assignee, assigned) => s"${showExp(assignee)} := ${showExp(assigned)}"
+    case Subscript(value, subscript) => s"${showExp(value)}[${showExp(subscript)}]"
+    case I(value) => s"$value"
+    case B(value) => s"$value"
+    case S(value) => s"\"${value}\""
+    case Variable(label) => f"$label"
+    case Binop(op, left, right) => showExp(left) ++ " " ++  op.show() ++ " " ++   showExp(right)
+    case Logop(op, left, right) => showExp(left) ++ " " ++  op.show() ++ " " ++   showExp(right)
     case If(_, _, _) => "if"
-    case Func(param, body) => f"func($param, ${showExp(body)})"
-    case Call(_, _) => "Call"
+    case Func(param, body) => f"\\$param => ${showExp(body)}"
+    case Call(f, b) => s"(${showExp(f)} ${showExp(b)})"
     case CallDyn(_, _) => "CallDyn"
-    case Letrec(_, _) => "Letrec"
+    case Letrec(ctx, e) =>
+      "let\n"
+        ++ ctx.backingField.map((s, ex) => s"  val $s = ${showExp(ex)}").mkString("\n")
+        ++ "\n"
+        ++ "in\n  "
+        ++ showExp(e)
     case Pair(_, _) => "Pair"
     case IsAPair(_) => "IsAPair"
     case Fst(_) => "Fst"

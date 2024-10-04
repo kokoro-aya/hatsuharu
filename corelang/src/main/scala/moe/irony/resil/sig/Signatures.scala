@@ -63,10 +63,23 @@ trait Op
 
 enum Binary extends Op {
   case ADD, SUB, MULT, DIV, MOD
+  
+  def show(): String = this match
+    case Binary.ADD => "+"
+    case Binary.SUB => "-"
+    case Binary.MULT => "*"
+    case Binary.DIV => "/"
+    case Binary.MOD => "%"
 }
 
 enum Logical extends Op {
   case EQ, LT, LE, NEQ
+  
+  def show(): String = this match
+    case Logical.EQ => "=="
+    case Logical.LT => ">"
+    case Logical.LE => ">="
+    case Logical.NEQ => "!="
 }
 
 
