@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Env, ErrV, EvalError, Fst, Func, I, If, IntV, IsAPair, Letrec, Logical, Logop, Pair, PairV, PromV, Rsl, RslExp, RslVal, S, Snd, StrV, UnitV, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedPattern, Nth, NthComponent, NumberPattern, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, SubscriptPattern, Tail, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -33,23 +33,41 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
 }
 
 
-def emptyEnv = ResilEnv[RslExp]()
+def emptyEnv: Env[RslExp] = ResilEnv[RslExp]()
 
 
 class Resil extends Rsl {
 
   def showExp(exp: RslExp): String = exp match
-    case I(value) => f"Int($value)"
-    case B(value) => f"Bool($value)"
-    case S(value) => f"Str($value)"
-    case Variable(label) => f"Var($label)"
-    case Binop(_, _, _) => "Binop"
-    case Logop(_, _, _) => "Logop"
+    case Data(header, fields) =>
+      header ++ "(" ++ fields.map(showExp).mkString(", ") ++ ")"
+    case Components(values, _) =>
+      "(" ++ values.map(showExp).mkString(", ") ++ ")"
+    case Struct(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ showExp(v) }.mkString(", ") ++ " }"
+    case AList(values) =>
+      "[" ++ values.map(showExp).mkString(", ") ++ "]"
+    case Array(elements) =>
+      "Array( " ++ elements.map(showExp).mkString(", ") ++ " )"
+    case Ref(value) => s"Ref(${showExp(value)})"
+    case Update(assignee, assigned) => s"${showExp(assignee)} := ${showExp(assigned)}"
+    case Subscript(value, subscript) => s"${showExp(value)}[${showExp(subscript)}]"
+    case I(value) => s"$value"
+    case B(value) => s"$value"
+    case S(value) => s"\"${value}\""
+    case Variable(label) => f"$label"
+    case Binop(op, left, right) => showExp(left) ++ " " ++  op.show() ++ " " ++   showExp(right)
+    case Logop(op, left, right) => showExp(left) ++ " " ++  op.show() ++ " " ++   showExp(right)
     case If(_, _, _) => "if"
-    case Func(param, body) => f"func($param, ${showExp(body)})"
-    case Call(_, _) => "Call"
+    case Func(param, body) => f"\\$param => ${showExp(body)}"
+    case Call(f, b) => s"(${showExp(f)} ${showExp(b)})"
     case CallDyn(_, _) => "CallDyn"
-    case Letrec(_, _) => "Letrec"
+    case Letrec(ctx, e) =>
+      "let\n"
+        ++ ctx.backingField.map((s, ex) => s"  val $s = ${showExp(ex)}").mkString("\n")
+        ++ "\n"
+        ++ "in\n  "
+        ++ showExp(e)
     case Pair(_, _) => "Pair"
     case IsAPair(_) => "IsAPair"
     case Fst(_) => "Fst"
@@ -57,6 +75,18 @@ class Resil extends Rsl {
     case AUnit() => "Unit"
 
   override def show(v: RslVal): String = v match
+    case UnionV(header, fields) =>
+      header ++ "(" ++ fields.map(show).mkString(", ") ++ ")"
+    case TupleV(values,  _) =>
+      "(" ++ values.map(show).mkString(", ") ++ ")"
+    case RecordV(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ show(v) }.mkString(", ") ++ " }"
+    case ListV(values) =>
+      "[" ++ values.map(show).mkString(",") ++ "]"
+    case ArrayV(values, length) =>
+      f"Array@$length(${values.map(show).mkString(",")})"
+    case RefV(value) =>
+      f"ref(${show(value)})"
     case IntV(value) => value.toString
     case BoolV(value) => value.toString
     case StrV(value) => value
@@ -67,6 +97,18 @@ class Resil extends Rsl {
     case ErrV(msg) => "Error: " + msg
 
   override def typ(v: RslVal): String = v match
+    case UnionV(header, _) =>
+      header
+    case TupleV(values,  _) =>
+      "(" ++ values.map(typ).mkString(", ") ++ ")"
+    case RecordV(header, values) =>
+      header.getOrElse("") ++ " { " ++ values.map { (k, v) => k ++ ": " ++ typ(v) }.mkString(", ") ++ " }"
+    case ListV(values) =>
+      "[" ++ values.map(typ).mkString(",") ++ "]"
+    case ArrayV(values, length) =>
+      f"Array@$length(${values.map(typ).mkString(",")})"
+    case RefV(value) =>
+      f"ref(${typ(value)})"
     case IntV(_) => "int"
     case BoolV(_) => "bool"
     case StrV(_) => "str"
@@ -76,7 +118,46 @@ class Resil extends Rsl {
     case PromV(_) => "promise"
     case ErrV(_) => "error"
 
+
+  private def buildPattern(e: RslExp): RslPattern = e match
+    case S(value) => NamedPattern(value)
+    case I(value) => NumberPattern(value)
+    case Subscript(value, subscript) => SubscriptPattern(buildPattern(value), buildPattern(subscript))
+    case _ => throw EvalError("Currently only (str, int) or nested patterns are allowed")
+
   override def evalEnv(env: Env[RslVal])(e: RslExp): RslVal = e match
+    case Data(header, fields) =>
+      throw EvalError("Custom ADT not supported yet")
+    case Struct(header, values) =>
+      RecordV(header, values = values.map { (k, v) => (k, evalEnv(env)(v)) })
+    case Array(elements) =>
+      ArrayV(elements.map { v => evalEnv(env)(v) }, elements.size)
+    case Ref(value) =>
+      RefV(evalEnv(env)(value))
+    case Update(assignee, assigned) =>
+      buildPattern(assignee) match
+        case NamedPattern(label) =>
+          env.lookup(label) match
+            case Some(v: RefV) =>
+              v.value = evalEnv(env)(assigned)
+              UnitV()
+            case Some(v) =>
+              throw EvalError("Attempt to apply update on value which is not a ref " + typ (v))
+            case None =>
+              throw EvalError("Attempt to apply update on non existing ref variable " + label)
+        case SubscriptPattern(NamedPattern(label), NumberPattern(index)) =>
+          env.lookup(label) match
+            case Some(v: ArrayV) =>
+              if index >= 0 && index < v.length then
+                v.values(index) = evalEnv(env)(assigned)
+                UnitV()
+              else
+                throw EvalError(s"Index=$index out of bound for updating array")
+            case Some(v) =>
+              throw EvalError("Attempt to apply update on value which is not an array " + typ (v))
+            case None =>
+              throw EvalError("Attempt to apply update on non existing array variable " + label)
+        case _ => throw EvalError("Complex subscript patterns not supported yet, only <name> and <name>[<index>] allowed")
     case I(value) => IntV(value)
     case B(value) => BoolV(value)
     case S(value) => StrV(value)
@@ -159,7 +240,51 @@ class Resil extends Rsl {
     case Snd(value) => evalEnv(env)(value) match
       case PairV(_, e2) => e2
       case _ => throw EvalError("[14] snd operation applied to non-pair")
+    case Components(values, arity) =>
+      TupleV(values.map { v => evalEnv(env)(v)}, arity)
+    case NthComponent(values, pos) => (evalEnv(env)(values), evalEnv(env)(pos)) match
+      case (TupleV(values, _), IntV(i)) =>
+        values(i)
+      case _ => throw EvalError("nth-component operation applied to non-tuple")
+    case AList(values) =>
+      ListV(values.map { v => evalEnv(env)(v) })
+    case Head(list) => evalEnv(env)(list) match
+      case ListV(values) =>
+        if values.isEmpty then throw EvalError("List out of bound: position 0 of 0")
+        else values.head
+      case _ => throw EvalError("Unsupported head operation on unknown type")
+    case Tail(list) => evalEnv(env)(list) match
+      case ListV(values) =>
+        if values.isEmpty then throw EvalError("List out of bound: position -1 of 0")
+        else values.last
+      case _ => throw EvalError("Unsupported tail operation on unknown type")
+    case Nth(coll, idx) => (evalEnv(env)(coll), evalEnv(env)(idx)) match
+      case (ListV(values), IntV(i)) =>
+        if i < 0 || i >= values.size then throw EvalError(s"List out of bound: position $i of ${values.size}")
+        else values(i)
+      case _ => throw EvalError("Unsupported nth operation on unknown type")
+    case Size(list) => evalEnv(env)(list) match
+      case ListV(values) => IntV(values.size)
+      case _ => throw EvalError("Unsupported size operation on unknown type")
+    case IsEmpty(list) => evalEnv(env)(list) match
+      case ListV(values) => BoolV(values.isEmpty)
+      case _ => throw EvalError("Unsupported isEmpty operation on unknown type")
     case AUnit() => UnitV()
+
+  override def evalEnv(env: Environment)(b: RslBlock): RslVal = b match
+    case decl: RslDecl =>
+      evalDecl(env)(decl)
+      UnitV()
+    case exp: RslExp => evalEnv(env.variables)(exp)
+
+  override def evalDecl(env: Environment)(d: RslDecl): Environment = d match
+    case DataDecl(name, ctors) =>
+      env.lookupType(name) match
+        case Some(_) => throw EvalError("Redeclaration of type " ++ name)
+        case None =>
+          val newType = DataT(name, ctors.map(c => (c.name, c)).toMap)
+          env.insert(name, newType)
+
 
   override def eval(e: RslExp): RslVal =
     try
@@ -168,4 +293,13 @@ class Resil extends Rsl {
       case e: EvalError => ErrV("EvalError: " + e.message)
       case e: Throwable => ErrV(e.getMessage)
     }
+
+  override def evalProgram(program: RslProgram): List[RslVal] =
+    try {
+      evalBlocks(Environment(ResilEnv[RslType](), ResilEnv[RslVal]()))(program.blocks)._2
+    } catch {
+        case e: EvalError => List(ErrV("EvalError: " + e.message))
+        case e: Throwable => List(ErrV(e.getMessage))
+      }
+
 }
