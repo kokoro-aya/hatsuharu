@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedPattern, Nth, NthComponent, NumberPattern, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, SubscriptPattern, Tail, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslProgram, RslSubscript, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, Tail, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -119,10 +119,10 @@ class Resil extends Rsl {
     case ErrV(_) => "error"
 
 
-  private def buildPattern(e: RslExp): RslPattern = e match
-    case S(value) => NamedPattern(value)
-    case I(value) => NumberPattern(value)
-    case Subscript(value, subscript) => SubscriptPattern(buildPattern(value), buildPattern(subscript))
+  private def buildSubscript(e: RslExp): RslSubscript = e match
+    case S(value) => NamedSubscript(value)
+    case I(value) => NumberSubscript(value)
+    case Subscript(value, subscript) => CompoundSubscript(buildSubscript(value), buildSubscript(subscript))
     case _ => throw EvalError("Currently only (str, int) or nested patterns are allowed")
 
   override def evalEnv(env: Env[RslVal])(e: RslExp): RslVal = e match
@@ -135,8 +135,8 @@ class Resil extends Rsl {
     case Ref(value) =>
       RefV(evalEnv(env)(value))
     case Update(assignee, assigned) =>
-      buildPattern(assignee) match
-        case NamedPattern(label) =>
+      buildSubscript(assignee) match
+        case NamedSubscript(label) =>
           env.lookup(label) match
             case Some(v: RefV) =>
               v.value = evalEnv(env)(assigned)
@@ -145,7 +145,7 @@ class Resil extends Rsl {
               throw EvalError("Attempt to apply update on value which is not a ref " + typ (v))
             case None =>
               throw EvalError("Attempt to apply update on non existing ref variable " + label)
-        case SubscriptPattern(NamedPattern(label), NumberPattern(index)) =>
+        case CompoundSubscript(NamedSubscript(label), NumberSubscript(index)) =>
           env.lookup(label) match
             case Some(v: ArrayV) =>
               if index >= 0 && index < v.length then

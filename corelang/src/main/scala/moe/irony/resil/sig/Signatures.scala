@@ -125,12 +125,23 @@ case class VarT(count: Int, var inner: Option[RslType]) extends RslType
 // case class AnyT
 // case class NothingT
 
-sealed class RslPattern
+sealed trait RslAssignable
 
-case class NamedPattern(label: String) extends RslPattern
-case class NumberPattern(value: Int) extends RslPattern
-case class SubscriptPattern(pattern: RslPattern, subscript: RslPattern) extends RslPattern
 
+sealed class RslSubscript extends RslAssignable
+
+case class NamedSubscript(label: String) extends RslSubscript
+case class NumberSubscript(value: Int) extends RslSubscript
+case class CompoundSubscript(pattern: RslSubscript, subscript: RslSubscript) extends RslSubscript
+// TODO: Add dot operator ... precedence ?
+
+sealed class RslPattern extends RslAssignable
+
+case class TuplePattern(items: List[RslPattern]) extends RslPattern
+case class ListPattern(elements: List[RslPattern]) extends RslPattern
+case object WildcardPattern extends RslPattern
+
+case class RslVar(label: String) extends RslAssignable
 
 case class RslProgram(blocks: List[RslBlock])
 
