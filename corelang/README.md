@@ -23,3 +23,10 @@ Several assignment exercises remain:
 - Explicit typing (ex. 6)
 - Multi-param functions (ex. 7)
 - Ref and Lazy constructs (ex 8 and 9)
+
+
+# Note
+
+Please use JDK 11 to compile this project:
+- From `Project Structure > SDK`
+- And `Settings > Build, Execution, Deployment > Build Tools > sbt > General Settings > JRE`.
