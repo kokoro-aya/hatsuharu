@@ -3,7 +3,7 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, Binary, Binop, Call, Ctor, DataDecl, Environment, Func, I, IntT, IntV, Letrec, Logop, Nth, Pair, ParamT, RslExp, RslType, RslVal, S, Size, Snd, TagT, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Binary, Binop, Call, Ctor, SumDecl, Environment, Func, I, IntT, IntV, Letrec, Logop, Nth, Pair, ParamT, RslExp, RslType, RslVal, S, Size, Snd, TagT, VarT, Variable}
 
 import scala.collection.mutable
 

@@ -56,7 +56,6 @@ case class Environment(var types: Env[RslType], var variables: Env[RslVal]):
   def dumpValues: String = variables.dumpNames
 
 
-case class Ctor(name: String, fields: Map[String, RslType])
 
 
 trait Op
@@ -151,7 +150,9 @@ sealed class RslBlock
 
 sealed class RslDecl extends RslBlock
 
-case class DataDecl(name: String, ctors: List[Ctor]) extends RslDecl
+
+case class Ctor(name: String, fields: Map[String, RslType])
+case class SumDecl(name: String, ctors: List[Ctor]) extends RslDecl
 //case class FuncDecl(name: String, ) extends RslDecl
 //case class ConstDecl extends RslDecl
 
@@ -205,22 +206,18 @@ case class AUnit() extends RslExp
 class EvalError(val message: String) extends Exception(message)
 
 trait Rsl:
-
-
-
+  
   // TODO: refactor to extension methods
   def show (v: RslVal): String
 
   def typ (v: RslVal): String
 
-  def evalEnv (env: Env[RslVal]) (e: RslExp): RslVal
-
-  def evalEnv (env: Environment) (b: RslBlock): RslVal
-
+  def evalExp (env: Environment) (e: RslExp): RslVal
   def evalDecl (env: Environment) (d: RslDecl): Environment
 
+  def evalBlock (env: Environment) (b: RslBlock): (Environment, RslVal)
+
   def evalBlocks (env: Environment) (bs: List[RslBlock]): (Environment, List[RslVal])
-    = (env, bs.foldLeft(List[RslVal]()) { (res, b) => res :+ evalEnv(env)(b) })
 
   def eval (e: RslExp): RslVal
 

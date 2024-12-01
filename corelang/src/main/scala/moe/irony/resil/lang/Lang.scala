@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, DataDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslProgram, RslSubscript, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, Tail, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, SumDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslProgram, RslSubscript, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, Tail, TupleV, UnionV, UnitV, Update, Variable}
 
 
 // TODO: refactor this
@@ -34,6 +34,12 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
 
 
 def emptyEnv: Env[RslExp] = ResilEnv[RslExp]()
+
+def newEnvironment: Environment =
+  Environment(
+    ResilEnv[RslType](),
+    ResilEnv[RslVal]()
+  )
 
 
 class Resil extends Rsl {
@@ -125,31 +131,32 @@ class Resil extends Rsl {
     case Subscript(value, subscript) => CompoundSubscript(buildSubscript(value), buildSubscript(subscript))
     case _ => throw EvalError("Currently only (str, int) or nested patterns are allowed")
 
-  override def evalEnv(env: Env[RslVal])(e: RslExp): RslVal = e match
+  override def evalExp(env: Environment)(e: RslExp): RslVal = {
+    e match
     case Data(header, fields) =>
       throw EvalError("Custom ADT not supported yet")
     case Struct(header, values) =>
-      RecordV(header, values = values.map { (k, v) => (k, evalEnv(env)(v)) })
+      RecordV(header, values = values.map { (k, v) => (k, evalExp(env)(v)) })
     case Array(elements) =>
-      ArrayV(elements.map { v => evalEnv(env)(v) }, elements.size)
+      ArrayV(elements.map { v => evalExp(env)(v) }, elements.size)
     case Ref(value) =>
-      RefV(evalEnv(env)(value))
+      RefV(evalExp(env)(value))
     case Update(assignee, assigned) =>
       buildSubscript(assignee) match
         case NamedSubscript(label) =>
-          env.lookup(label) match
+          env._2.lookup(label) match
             case Some(v: RefV) =>
-              v.value = evalEnv(env)(assigned)
+              v.value = evalExp(env)(assigned)
               UnitV()
             case Some(v) =>
               throw EvalError("Attempt to apply update on value which is not a ref " + typ (v))
             case None =>
               throw EvalError("Attempt to apply update on non existing ref variable " + label)
         case CompoundSubscript(NamedSubscript(label), NumberSubscript(index)) =>
-          env.lookup(label) match
+          env._2.lookup(label) match
             case Some(v: ArrayV) =>
               if index >= 0 && index < v.length then
-                v.values(index) = evalEnv(env)(assigned)
+                v.values(index) = evalExp(env)(assigned)
                 UnitV()
               else
                 throw EvalError(s"Index=$index out of bound for updating array")
@@ -161,7 +168,7 @@ class Resil extends Rsl {
     case I(value) => IntV(value)
     case B(value) => BoolV(value)
     case S(value) => StrV(value)
-    case Variable(label) => env.lookupBy(label) {
+    case Variable(label) => env._2.lookupBy(label) {
           // This injected lookup logic means that we will look for first entry which is *either* a promise that holds a
           // value, *or* a value. An unresolved promise will not be taken into account.
       case PromV(Some(_)) => true
@@ -174,7 +181,7 @@ class Resil extends Rsl {
         case _ => x
       case None => throw EvalError("[2] Unresolved variable name " + label)
     case Binop(op, left, right) =>
-      (evalEnv(env)(left), evalEnv(env)(right)) match
+      (evalExp(env)(left), evalExp(env)(right)) match
         case (IntV(i1), IntV(i2)) => op match
           case Binary.ADD => IntV (i1 + i2)
           case Binary.SUB => IntV (i1 - i2)
@@ -183,7 +190,7 @@ class Resil extends Rsl {
           case Binary.MOD => IntV (i1 % i2)
         case (v1, v2) => throw EvalError ("[3] Binop expects integers. Instead found: " + typ (PairV (v1, v2)))
     case Logop(op, left, right) =>
-      (evalEnv(env)(left), evalEnv(env)(right)) match
+      (evalExp(env)(left), evalExp(env)(right)) match
         case (BoolV(b1), BoolV(b2)) => op match
           case Logical.EQ => BoolV(b1 == b2)
           case Logical.NEQ => BoolV(b1 != b2)
@@ -193,92 +200,92 @@ class Resil extends Rsl {
           case Logical.LE => BoolV(i1 <= i2)
           case _ => throw EvalError ("[5] Logop LT or LE expected for ints.")
         case (v1, v2) => throw EvalError ("[6] Logop expects either ints or bools. Instead found: " + typ (PairV (v1, v2)))
-    case If(cond, caseTrue, caseElse) => evalEnv(env)(cond) match
-      case BoolV(b) => if b then evalEnv(env)(caseTrue) else evalEnv(env)(caseElse)
+    case If(cond, caseTrue, caseElse) => evalExp(env)(cond) match
+      case BoolV(b) => if b then evalExp(env)(caseTrue) else evalExp(env)(caseElse)
       case _ => throw EvalError("[7] If operation applied to non-bool")
-    case Func(_, _) => ClosV(env = env, f = e)
+    case Func(_, _) => ClosV(env = env._2, f = e)
     case Call(funexp, actual) =>
-      val vFn = evalEnv(env)(funexp)
-      val vAct = evalEnv(env)(actual)
+      val vFn = evalExp(env)(funexp)
+      val vAct = evalExp(env)(actual)
       vFn match
         case ClosV(innerEnv, f) => f match
           case Func(funArg, funBody) =>
-            val newEnv = env // Refill a new env with given environment and add the reference as new scope
+            val newEnv = env._2 // Refill a new env with given environment and add the reference as new scope
             val currEnv = newEnv.insert(funArg, vAct)
-            evalEnv(innerEnv ++ currEnv)(funBody)
+            evalExp(Environment(env._1, innerEnv ++ currEnv))(funBody)
           case _ => throw EvalError ("[8] call oper. must have a Func as f, got " + showExp(f))
         case _ => throw EvalError ("[9] call oper. must have first subexpr as Closure, got " + show(vFn))
     case CallDyn(dynname, actual) =>
-      val vFLabel = evalEnv(env)(dynname)
-      val vAct = evalEnv(env)(actual)
+      val vFLabel = evalExp(env)(dynname)
+      val vAct = evalExp(env)(actual)
       vFLabel match
-        case StrV(name) => env.lookup(name) match
-          case Some(ClosV(env, f)) => f match
+        case StrV(name) => env._2.lookup(name) match
+          case Some(ClosV(cenv, f)) => f match
             case Func(funArg, funBody) =>
               val currEnv = ResilEnv[RslVal]().insert(funArg, vAct)
-              evalEnv(env ++ currEnv)(funBody)
+              evalExp(Environment(env._1, cenv ++ currEnv))(funBody)
             case _ => throw EvalError ("[10] call oper. must have a Func as f, got " + showExp(f))
-          case _ => throw EvalError ("[11] dyn call on unresolved name " + name + ", known:" + (env.dumpNames))
+          case _ => throw EvalError ("[11] dyn call on unresolved name " + name + ", known:" + (env._2.dumpNames))
         case _ => throw EvalError ("[12] dyn call must be invoked on StrV(..), got " + show(vFLabel))
     case Letrec(exps, body) =>
-      val prefilledEnvs = exps.backingField.foldLeft(env) { (acc, sv) => acc.insert(sv._1, PromV(None)) }
+      val prefilledEnvs = exps.backingField.foldLeft(env._2) { (acc, sv) => acc.insert(sv._1, PromV(None)) }
       val evaledEnvs = exps.backingField.foldLeft(prefilledEnvs) { (acc, sv) =>
-        val exi = evalEnv(acc)(sv._2)
+        val exi = evalExp(Environment(env._1, acc))(sv._2)
         acc.update(sv._1)(exi)
       }
-      evalEnv(evaledEnvs)(body)
+      evalExp(Environment(env._1, evaledEnvs))(body)
     case Pair(first, second) =>
-      val v1 = evalEnv(env)(first)
-      val v2 = evalEnv(env)(second)
+      val v1 = evalExp(env)(first)
+      val v2 = evalExp(env)(second)
       PairV(v1, v2)
-    case IsAPair(value) => evalEnv(env)(value) match
+    case IsAPair(value) => evalExp(env)(value) match
       case PairV(_, _) => BoolV(true)
       case _ => BoolV(false)
-    case Fst(value) => evalEnv(env)(value) match
+    case Fst(value) => evalExp(env)(value) match
       case PairV(e1, _) => e1
       case _ => throw EvalError("[13] fst operation applied to non-pair")
-    case Snd(value) => evalEnv(env)(value) match
+    case Snd(value) => evalExp(env)(value) match
       case PairV(_, e2) => e2
       case _ => throw EvalError("[14] snd operation applied to non-pair")
     case Components(values, arity) =>
-      TupleV(values.map { v => evalEnv(env)(v)}, arity)
-    case NthComponent(values, pos) => (evalEnv(env)(values), evalEnv(env)(pos)) match
+      TupleV(values.map { v => evalExp(env)(v)}, arity)
+    case NthComponent(values, pos) => (evalExp(env)(values), evalExp(env)(pos)) match
       case (TupleV(values, _), IntV(i)) =>
         values(i)
       case _ => throw EvalError("nth-component operation applied to non-tuple")
     case AList(values) =>
-      ListV(values.map { v => evalEnv(env)(v) })
-    case Head(list) => evalEnv(env)(list) match
+      ListV(values.map { v => evalExp(env)(v) })
+    case Head(list) => evalExp(env)(list) match
       case ListV(values) =>
         if values.isEmpty then throw EvalError("List out of bound: position 0 of 0")
         else values.head
       case _ => throw EvalError("Unsupported head operation on unknown type")
-    case Tail(list) => evalEnv(env)(list) match
+    case Tail(list) => evalExp(env)(list) match
       case ListV(values) =>
         if values.isEmpty then throw EvalError("List out of bound: position -1 of 0")
         else values.last
       case _ => throw EvalError("Unsupported tail operation on unknown type")
-    case Nth(coll, idx) => (evalEnv(env)(coll), evalEnv(env)(idx)) match
+    case Nth(coll, idx) => (evalExp(env)(coll), evalExp(env)(idx)) match
       case (ListV(values), IntV(i)) =>
         if i < 0 || i >= values.size then throw EvalError(s"List out of bound: position $i of ${values.size}")
         else values(i)
       case _ => throw EvalError("Unsupported nth operation on unknown type")
-    case Size(list) => evalEnv(env)(list) match
+    case Size(list) => evalExp(env)(list) match
       case ListV(values) => IntV(values.size)
       case _ => throw EvalError("Unsupported size operation on unknown type")
-    case IsEmpty(list) => evalEnv(env)(list) match
+    case IsEmpty(list) => evalExp(env)(list) match
       case ListV(values) => BoolV(values.isEmpty)
       case _ => throw EvalError("Unsupported isEmpty operation on unknown type")
     case AUnit() => UnitV()
+  }
 
-  override def evalEnv(env: Environment)(b: RslBlock): RslVal = b match
+  override def evalBlock(env: Environment)(b: RslBlock): (Environment, RslVal) = b match
     case decl: RslDecl =>
-      evalDecl(env)(decl)
-      UnitV()
-    case exp: RslExp => evalEnv(env.variables)(exp)
+      (evalDecl(env)(decl), UnitV())
+    case exp: RslExp => (env, evalExp(env)(exp))
 
   override def evalDecl(env: Environment)(d: RslDecl): Environment = d match
-    case DataDecl(name, ctors) =>
+    case SumDecl(name, ctors) =>
       env.lookupType(name) match
         case Some(_) => throw EvalError("Redeclaration of type " ++ name)
         case None =>
@@ -286,9 +293,18 @@ class Resil extends Rsl {
           env.insert(name, newType)
 
 
+  override def evalBlocks(env: Environment)(bs: List[RslBlock]): (Environment, List[RslVal]) = {
+    val initState = (env, List[RslVal]())
+    bs.foldLeft(initState) { (lastState, b) =>
+      val (env, lastRes) = lastState
+      val (newEnv, currExp) = evalBlock(env)(b)
+      (newEnv, lastRes :+ currExp)
+    }
+  }
+
   override def eval(e: RslExp): RslVal =
     try
-      evalEnv(ResilEnv[RslVal]())(e)
+      evalExp(newEnvironment)(e)
     catch {
       case e: EvalError => ErrV("EvalError: " + e.message)
       case e: Throwable => ErrV(e.getMessage)
