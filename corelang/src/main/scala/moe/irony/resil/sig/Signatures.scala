@@ -107,7 +107,7 @@ sealed class RslType
 case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
 case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
-case class RecordT(header: Option[String], types: List[RslType]) extends RslType
+case class RecordT(header: Option[String], types: List[(String, RslType)]) extends RslType
 case class ListT(inner: RslType) extends RslType
 case class ArrayT(inner: RslType) extends RslType
 case class RefT(ty: RslType) extends RslType

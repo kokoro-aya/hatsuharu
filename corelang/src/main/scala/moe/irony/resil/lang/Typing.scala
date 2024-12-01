@@ -38,7 +38,7 @@ class Typing extends ITyping:
     case RecordT(header, types) => (header match
       case Some(value) => s"$value "
       case None => ""
-      ) ++ s"{ ${types.map(typeToString).mkString(", ")} }"
+      ) ++ s"{ ${types.map{(name, ty) => name + ": " + typeToString(ty)}.mkString(", ")} }"
     case ListT(ty) => "list[" ++ typeToString(ty) ++ "]"
     case ArrayT(ty) => "array[" ++ typeToString(ty) ++ "]"
     case RefT(ty) => s"&${typeToString(ty)}"
@@ -76,7 +76,7 @@ class Typing extends ITyping:
         val allFieldConstraints = values.values.map(getConstraints(env)(_)(outerCons)).toList
         val ts = allFieldConstraints.map(_._1)
         val cons = allFieldConstraints.flatMap(_._2)
-        val allCons = (t, RecordT(header, ts)) :: cons
+        val allCons = (t, RecordT(header, values.keys.zip(ts).toList)) :: cons
         (t, allCons)
       case AList(exps) =>
         val t = newVarType
@@ -198,8 +198,16 @@ class Typing extends ITyping:
       else if types1.size != types2.size then
         throw TypeError("Mismatch record sizes")
       else
-        types1.zip(types2).foreach { (l, r) =>
-          unify (l) (r)
+        val leftName = header1.getOrElse("_")
+        val rightName = header2.getOrElse("_")
+        // Sort two type lists of recordT by their labels to get same order of representation
+        types1.sortBy(_._1).zip(types2.sortBy(_._1)).foreach { (left, right) =>
+          val (ll, lty) = left
+          val (rl, rty) = right
+          if ll != rl then
+            throw TypeError(f"Mismatch record fields $leftName:$ll with $rightName:$rl")
+          else
+            unify (lty) (rty)
         }
     case (ListT(ty1), ListT(ty2)) => 
       if ty1 == ty2 then ()
@@ -302,7 +310,7 @@ class Typing extends ITyping:
     case TupleT(types) =>
       types.map(containsType(_)(inner)).reduce(_ || _)
     case RecordT(_, types) =>
-      types.map(containsType(_)(inner)).reduce(_ || _)
+      types.map(_._2).map(containsType(_)(inner)).reduce(_ || _)
     case ListT(ty) => containsType(ty)(inner)
     case ArrayT(ty) => containsType(ty)(inner)
     case RefT(ty) => throw NotImplementedError()
@@ -332,7 +340,7 @@ class Typing extends ITyping:
     case TupleT(types) =>
       TupleT(types.map(resolve))
     case RecordT(header, types) =>
-      RecordT(header, types.map(resolve))
+      RecordT(header, types.map { (ll, ty) => (ll, resolve(ty)) })
     case ListT(ty) => ListT(resolve(ty))
     case ArrayT(ty) => ArrayT(resolve(ty))
     case RefT(ty) => throw NotImplementedError()
