@@ -18,7 +18,11 @@ class ResilEnv[A](val backingField: List[(String, A)] = List()) extends Env[A] {
     this.backingField.find(label == _._1).map(_._2)
 
   override def lookupBy(label: String) (criteria: (A) => Boolean): Option[A] =
-    this.backingField.find { it => label == it._1 && criteria(it._2) }.map(_._2)
+    this.backingField.find { it => it._1 == label && criteria(it._2) }.map(_._2)
+
+  override def lookupBy(criteria: (A) => Boolean): Option[A] =
+    this.backingField.find { it => criteria(it._2) }.map(_._2)
+
 
   override infix def ++(other: Env[A]): Env[A] =
     ResilEnv[A](this.backingField ++ other.backingField)
@@ -133,8 +137,23 @@ class Resil extends Rsl {
 
   override def evalExp(env: Environment)(e: RslExp): RslVal = {
     e match
-    case Data(header, fields) =>
-      throw EvalError("Custom ADT not supported yet")
+    case Data(label, fields) =>
+      env.lookupTypeByCriteria {
+        case DataT(_, _) => true
+        case _ => false
+      } match {
+        case Some(DataT(sumName, ctors)) =>
+          ctors.get(label) match
+            case Some(ctorLabel, ctorFields)  =>
+              if ctorFields.size == fields.size then
+                UnionV(ctorLabel, fields.map(evalExp(env)(_)))
+              else
+                throw EvalError(s"The type constructor $sumName::$label has ${ctorFields.size} fields, required: ${fields.size}")
+            case None =>
+              throw EvalError(s"Cannot find registered union type with constructor $label")
+        case Some(_) => throw EvalError(s"The type variant $label is not a custom ADT type")
+        case None => throw EvalError(s"Type variant $label not found")
+      }
     case Struct(header, values) =>
       RecordV(header, values = values.map { (k, v) => (k, evalExp(env)(v)) })
     case Array(elements) =>

@@ -10,6 +10,7 @@ trait Env[A]:
   def lookup(label: String): Option[A]
 
   def lookupBy(label: String) (criteria: (A) => Boolean): Option[A]
+  def lookupBy(criteria: (A) => Boolean): Option[A]
 
   infix def ++(other: Env[A]): Env[A]
 
@@ -37,10 +38,10 @@ case class Environment(var types: Env[RslType], var variables: Env[RslVal]):
   def lookupType(label: String): Option[RslType] = types.lookup(label)
   def lookupValue(label: String): Option[RslVal] = variables.lookup(label)
 
-  def lookupTypeByCriteria(label: String) (criteria: (RslType) => Boolean): Option[RslType] =
-    types.lookupBy(label) (criteria)
-  def lookupValueByCriteria(label: String) (criteria: (RslVal) => Boolean): Option[RslVal] =
-    variables.lookupBy(label) (criteria)
+  def lookupTypeByCriteria (criteria: (RslType) => Boolean): Option[RslType] =
+    types.lookupBy(criteria)
+  def lookupValueByCriteria (criteria: (RslVal) => Boolean): Option[RslVal] =
+    variables.lookupBy(criteria)
 
   def +++(other: Env[RslType]): Environment = {
     this.types = this.types ++ other
@@ -206,7 +207,7 @@ case class AUnit() extends RslExp
 class EvalError(val message: String) extends Exception(message)
 
 trait Rsl:
-  
+
   // TODO: refactor to extension methods
   def show (v: RslVal): String
 
