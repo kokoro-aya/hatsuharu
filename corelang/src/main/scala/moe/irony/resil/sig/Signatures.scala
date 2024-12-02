@@ -105,6 +105,8 @@ case class ErrV(errMessage: String) extends RslVal
 sealed class RslType
 
 case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
+// A simple variant of DataT arm, used for internal typing match
+case class VariantT(sumName: String, ctor: Ctor) extends RslType
 case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
 case class RecordT(header: Option[String], types: List[(String, RslType)]) extends RslType

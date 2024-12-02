@@ -1,10 +1,10 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, AList, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable, VariantT}
 import moe.irony.resil.utils.IdentifierGenerator
 
-import Console.{RED, BLUE, RESET}
+import Console.{BLUE, RED, RESET}
 
 trait ITyping:
   def resolve(typ: RslType): RslType
@@ -62,7 +62,30 @@ class Typing extends ITyping:
 
   def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
     exp match
-      case Data(ctorName, fields) => ???
+      case Data(label, fields) =>
+        env.lookupBy {
+          case DataT(_, _) => true
+          case _ => false
+        } match {
+          case Some(DataT(sumName, ctors)) =>
+            ctors.get(label) match
+              case Some(_, ctorFieldTypes)  =>
+                if ctorFieldTypes.size == fields.size then
+                  val t = newVarType
+                  val allConstraints = fields.map(getConstraints(env)(_)(outerCons))
+                  val ts = allConstraints.map(_._1)
+                  val cons = allConstraints.flatMap(_._2)
+                  val fieldNames = ctorFieldTypes.keys
+                  val ctor = Ctor(label, (fieldNames zip ts).toMap)
+                  val allCons = (t, VariantT(sumName, ctor)) :: cons
+                  (t, allCons)
+                else
+                  throw TypeError(s"The type constructor $sumName::$label has ${ctorFieldTypes.size} fields, required: ${fields.size}")
+              case None => throw TypeError(s"Cannot find registered union type with constructor $label")
+          case Some(_) => throw TypeError(s"The type variant $label is not a custom ADT type")
+          case None => throw TypeError(s"Cannot find registered union type with constructor $label")
+
+        }
       case Components(values, _) =>
         val t = newVarType
         val allConstraints = values.map(getConstraints(env)(_)(outerCons))
@@ -183,7 +206,30 @@ class Typing extends ITyping:
       // TODO: split Resil() to several objects to prevent circular dependency
 
   def unify (left: RslType) (right: RslType): Unit = (left, right) match
-    case (DataT(name1, fields1), DataT(name2, fields2)) => throw NotImplementedError()
+    case (DataT(name1, fields1), DataT(name2, fields2)) => 
+      throw NotImplementedError("It's not supposed to unify match DataT and DataT at the moment")
+    case (DataT(name1, fields), VariantT(name2, ctor)) =>
+      if name1 != name2 then
+        throw TypeError("Mismatch ADT and variant names")
+      else fields.find { (label, _) =>
+        label == ctor.name
+      } match
+        case Some((_, adtCtor)) =>
+          val labelsInDataCtor = adtCtor.fields.keys.toSet
+          val labelsInVariantCtor = ctor.fields.keys.toSet
+          if (labelsInVariantCtor diff labelsInDataCtor).nonEmpty
+          || (labelsInDataCtor diff labelsInVariantCtor).nonEmpty then
+            throw TypeError(s"Fields of variant ${ctor.name} and its ADT $name1 do not match")
+          else
+            val typesInDataCtor = adtCtor.fields.toList.sortBy(_._1).map(_._2)
+            val typesInVariantCtor = ctor.fields.toList.sortBy(_._1).map(_._2)
+            (typesInDataCtor zip typesInVariantCtor).foreach { (l, r) =>
+              unify (l) (r)
+            }
+        case None => throw TypeError(s"Cannot find variant ${ctor.name} in ADT $name1")
+    case (VariantT(name1, ctor), DataT(name2, fields)) =>
+      unify(right)(left)
+
     case (TagT(tag1), TagT(tag2)) => throw NotImplementedError()
     case (TupleT(types1), TupleT(types2)) =>
       if types1.size != types2.size then
