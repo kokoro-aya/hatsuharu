@@ -132,25 +132,27 @@ def main(): Unit = {
       Data("Rectangle", List(I(7), I(8)))
     )
 
+  Typing().typecheck(blocks1)
+
   val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
 
   res1.map { it => Resil().show(it) }.foreach(println)
 
-  // TODO: add full workable example
-
-  val blocks2 =
-    List[RslBlock](
-      SumDecl(
-        "Shape", List(
-          Ctor("Square", Map("side" -> IntT)),
-          Ctor("Circle", Map("radius" -> IntT)),
-          Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT))
-        )),
-      Data("Bubble", List(I(16), I(8))) // Will raise mismatch error, but not typed currently
-    )
-
-  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
-
-  res2.map { it => Resil().show(it) }.foreach(println)
+//  // TODO: add full workable example
+//
+//  val blocks2 =
+//    List[RslBlock](
+//      SumDecl(
+//        "Shape", List(
+//          Ctor("Square", Map("side" -> IntT)),
+//          Ctor("Circle", Map("radius" -> IntT)),
+//          Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT))
+//        )),
+//      Data("Bubble", List(I(16), I(8))) // Will raise mismatch error, but not typed currently
+//    )
+//
+//  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
+//
+//  res2.map { it => Resil().show(it) }.foreach(println)
 
 }

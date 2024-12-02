@@ -1,10 +1,12 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable, VariantT}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslBlock, RslDecl, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable, VariantT}
 import moe.irony.resil.utils.IdentifierGenerator
 
 import Console.{BLUE, RED, RESET}
+import scala.util.boundary
+import scala.util.boundary.break
 
 trait ITyping:
   def resolve(typ: RslType): RslType
@@ -29,6 +31,11 @@ class Typing extends ITyping:
 
 
   private def emptyEnv: Env[RslType] = ResilEnv[RslType]()
+  
+  // Reserved type names that users should not be able to use
+  def reservedPrimitiveTypes: List[String] = List(
+    "Int", "Bool", "Str", "Array", "Ref", "Unit", "Pair", "Func", "Var", "Variant"
+  )
 
 
   def typeToString (ty: RslType): String = ty match
@@ -54,6 +61,7 @@ class Typing extends ITyping:
         case Some(ity) => typeToString(ity)
         case None => "_"
     }"
+    case VariantT(sumName, Ctor(name, _)) => s"$sumName::$name"
     case _ => throw NotImplementedError("Unknown type " ++ ty.toString)
 
   def optTypeToString (opt: Option[RslType]): String = opt match
@@ -206,7 +214,7 @@ class Typing extends ITyping:
       // TODO: split Resil() to several objects to prevent circular dependency
 
   def unify (left: RslType) (right: RslType): Unit = (left, right) match
-    case (DataT(name1, fields1), DataT(name2, fields2)) => 
+    case (DataT(name1, fields1), DataT(name2, fields2)) =>
       throw NotImplementedError("It's not supposed to unify match DataT and DataT at the moment")
     case (DataT(name1, fields), VariantT(name2, ctor)) =>
       if name1 != name2 then
@@ -352,6 +360,8 @@ class Typing extends ITyping:
 
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
     case DataT(name, ctors) => throw NotImplementedError()
+    case VariantT(name, ctors) =>
+      ctors.fields.values.map(containsType(_)(inner)).reduce(_ || _)
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>
       types.map(containsType(_)(inner)).reduce(_ || _)
@@ -382,6 +392,11 @@ class Typing extends ITyping:
 
   override def resolve(typ: RslType): RslType = typ match
     case DataT(name, ctors) => throw NotImplementedError()
+    case VariantT(sumName, Ctor(name, fields)) => 
+      val resolvedFields = fields.map { (label, ty) =>
+        (label, resolve(ty))
+      }.toMap
+      VariantT(sumName, Ctor(name, resolvedFields))
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>
       TupleT(types.map(resolve))
@@ -406,8 +421,11 @@ class Typing extends ITyping:
     case _ => throw NotImplementedError("Typing.resolve called on unknown type: " ++ typeToString(typ))
 
   override def typecheck(exp: RslExp): Either[String, RslType] =
+    typecheck(emptyEnv)(exp)
+
+  def typecheck(env: Env[RslType]) (exp: RslExp): Either[String, RslType] =
     try
-      val (t, cons) = getConstraints(emptyEnv) (exp) (List())
+      val (t, cons) = getConstraints(env) (exp) (List())
       cons.reverse.foreach { (l, r) => unify(l)(r) }
       val typ = resolve(t)
       resetParamType()
@@ -421,5 +439,28 @@ class Typing extends ITyping:
       case e: Throwable =>
         println(e.getMessage)
         Left(e.getMessage)
+
+
+  def typecheck(env: Environment)(b: RslBlock): (Environment, Either[String, RslType]) = b match
+    case decl: RslDecl =>
+      val newEnv = Resil().evalDecl(env)(decl)
+      (newEnv, Right(UnitT))
+    case exp: RslExp => (env, typecheck(env.types)(exp))
+
+  def typecheck (bs: List[RslBlock]): Either[String, List[RslType]] =
+    import moe.irony.resil.sig.RslVal
+    boundary:
+      val initAcc = Environment(emptyEnv, ResilEnv[RslVal]())
+      val folded =
+        bs.foldLeft((initAcc, List[RslType]())) { (acc, b) =>
+          val (lastEnv, lastList) = acc
+          val currEnv = Environment(lastEnv.types, ResilEnv[RslVal]())
+          val (newEnv, currRes) = typecheck(currEnv)(b)
+          currRes match
+            case Left(value) => boundary.break(Left(value))
+            case Right(newTy) => (newEnv, lastList :+ newTy)
+        }
+      Right(folded._2)
+
 
 class TypeError(val message: String) extends Exception(message)

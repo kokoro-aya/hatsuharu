@@ -146,6 +146,7 @@ class Resil extends Rsl {
           ctors.get(label) match
             case Some(ctorLabel, ctorFields)  =>
               if ctorFields.size == fields.size then
+                // TODO: type check to enforce typing of each field
                 UnionV(ctorLabel, fields.map(evalExp(env)(_)))
               else
                 throw EvalError(s"The type constructor $sumName::$label has ${ctorFields.size} fields, required: ${fields.size}")
