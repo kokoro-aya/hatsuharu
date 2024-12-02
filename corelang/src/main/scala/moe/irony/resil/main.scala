@@ -124,9 +124,9 @@ def main(): Unit = {
     List[RslBlock](
       SumDecl(
         "Shape", List(
-          Ctor("Square", Map("side" -> IntT)),
-          Ctor("Circle", Map("radius" -> IntT)),
-          Ctor("Rectangle", Map("width" -> BoolT, "height" -> StrT)) // Type not checked yet
+          Ctor("Square", List("side" -> IntT)),
+          Ctor("Circle", List("radius" -> IntT)),
+          Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
       )),
       Data("Square", List(I(16))),
       Data("Rectangle", List(I(7), I(8)))

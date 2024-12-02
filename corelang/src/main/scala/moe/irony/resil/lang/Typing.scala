@@ -83,8 +83,8 @@ class Typing extends ITyping:
                   val allConstraints = fields.map(getConstraints(env)(_)(outerCons))
                   val ts = allConstraints.map(_._1)
                   val cons = allConstraints.flatMap(_._2)
-                  val fieldNames = ctorFieldTypes.keys
-                  val ctor = Ctor(label, (fieldNames zip ts).toMap)
+                  val fieldNames = ctorFieldTypes.map(_._1)
+                  val ctor = Ctor(label, (fieldNames zip ts))
                   val allCons = (t, VariantT(sumName, ctor)) :: cons
                   (t, allCons)
                 else
@@ -223,16 +223,22 @@ class Typing extends ITyping:
         label == ctor.name
       } match
         case Some((_, adtCtor)) =>
-          val labelsInDataCtor = adtCtor.fields.keys.toSet
-          val labelsInVariantCtor = ctor.fields.keys.toSet
-          if (labelsInVariantCtor diff labelsInDataCtor).nonEmpty
-          || (labelsInDataCtor diff labelsInVariantCtor).nonEmpty then
+          val labelsInDataCtor = adtCtor.fields.map(_._1)
+          val labelsInVariantCtor = ctor.fields.map(_._1)
+          if exactMatching(labelsInVariantCtor, labelsInDataCtor) then
             throw TypeError(s"Fields of variant ${ctor.name} and its ADT $name1 do not match")
           else
             val typesInDataCtor = adtCtor.fields.toList.sortBy(_._1).map(_._2)
             val typesInVariantCtor = ctor.fields.toList.sortBy(_._1).map(_._2)
             (typesInDataCtor zip typesInVariantCtor).foreach { (l, r) =>
               unify (l) (r)
+            }
+            
+          def exactMatching[A](listA: List[A], listB: List[A]): Boolean =
+            listA.size == listB.size 
+            && (listA zip listB).foldLeft(true) { (acc, currPair) => 
+              val (a, b) = currPair
+              a == b 
             }
         case None => throw TypeError(s"Cannot find variant ${ctor.name} in ADT $name1")
     case (VariantT(name1, ctor), DataT(name2, fields)) =>
@@ -361,7 +367,7 @@ class Typing extends ITyping:
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
     case DataT(name, ctors) => throw NotImplementedError()
     case VariantT(name, ctors) =>
-      ctors.fields.values.map(containsType(_)(inner)).reduce(_ || _)
+      ctors.fields.map { (_, ty) => containsType(ty)(inner) }.reduce(_ || _)
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>
       types.map(containsType(_)(inner)).reduce(_ || _)
@@ -395,7 +401,7 @@ class Typing extends ITyping:
     case VariantT(sumName, Ctor(name, fields)) => 
       val resolvedFields = fields.map { (label, ty) =>
         (label, resolve(ty))
-      }.toMap
+      }
       VariantT(sumName, Ctor(name, resolvedFields))
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>

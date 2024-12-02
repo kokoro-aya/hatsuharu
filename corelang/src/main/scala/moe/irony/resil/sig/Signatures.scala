@@ -154,7 +154,7 @@ sealed class RslBlock
 sealed class RslDecl extends RslBlock
 
 
-case class Ctor(name: String, fields: Map[String, RslType])
+case class Ctor(name: String, fields: List[(String, RslType)])
 case class SumDecl(name: String, ctors: List[Ctor]) extends RslDecl
 //case class FuncDecl(name: String, ) extends RslDecl
 //case class ConstDecl extends RslDecl
