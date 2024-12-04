@@ -3,13 +3,13 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, Binary, Binop, BoolT, Call, Ctor, Data, Environment, Func, I, IntT, IntV, Letrec, Logop, Nth, Pair, ParamT, RslBlock, RslDecl, RslExp, RslType, RslVal, S, Size, Snd, StrT, SumDecl, TagT, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Binary, Binop, BoolT, Call, Ctor, Data, Environment, Func, I, IntT, IntV, Letrec, Logop, Nth, Pair, ParamT, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, SumDecl, TagT, VarT, Variable}
 
 import scala.collection.mutable
 
 
-def mkEnv(bindings: (String, RslExp)*): ResilEnv[RslExp] = {
-  ResilEnv[RslExp](bindings.toList)
+def mkEnv(bindings: (String, RslExp)*): List[(RslVar, RslExp)] = {
+  bindings.map{ (s, e) =>  (RslVar(s), e) }.toList
 }
 
 def evalSeveralExps = {

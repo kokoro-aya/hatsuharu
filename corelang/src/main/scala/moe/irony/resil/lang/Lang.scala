@@ -235,7 +235,7 @@ class Resil extends Rsl {
               throw EvalError("Attempt to apply update on value which is not a ref " + typ (v))
             case None =>
               throw EvalError("Attempt to apply update on non existing ref variable " + label)
-        case CompoundSubscript(NamedSubscript(label), NumberSubscript(index)) =>
+        case CompoundSubscript(RslVar(label), NumberSubscript(index)) =>
           env._2.lookup(label) match
             case Some(v: ArrayV) =>
               if index >= 0 && index < v.length then

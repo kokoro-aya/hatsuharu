@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslBlock, RslDecl, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable, VariantT}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern}
 import moe.irony.resil.utils.IdentifierGenerator
 
 import Console.{BLUE, RED, RESET}
@@ -67,6 +67,22 @@ class Typing extends ITyping:
   def optTypeToString (opt: Option[RslType]): String = opt match
     case Some(value) => typeToString(value)
     case None => "_"
+    
+  def getPatternConstraints (p: RslPattern): List[(String, RslType)] =
+    p match
+      case TuplePattern(items) => 
+        val resolved = items.flatMap { a => getAssignableConstraints(a) }
+        resolved :+ ("", TupleT(resolved.map(_._2)))
+      case ListPattern(_) => 
+        val ty = newVarType
+        List(("", ListT(ty)))
+      case WildcardPattern => throw TypeError("Wildcard pattern is not supported yet") // TODO
+      
+  def getAssignableConstraints (a: RslAssignable): List[(String, RslType)] =
+    a match
+      case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
+      case p: RslPattern => getPatternConstraints(p)
+      case RslVar(label) => List((label, newVarType))
 
   def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
     exp match
@@ -167,14 +183,15 @@ class Typing extends ITyping:
         val t = newVarType
         val z = (List[((String, RslType), List[(RslType, RslType)])](), emptyEnv)
 
-        val backfields = assigns.backingField
+        val backfields = assigns
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
-          val (s, v) = sv
+          val (sA, v) = sv
+          val s = getAssignableConstraints(sA)
           val (acc, envs) = zr
           val (ty, list) = getConstraints(envs)(v) (outerCons)
           val newVar = newVarType
-          val constraints = ((s, ty), (ty, newVar) :: list) :: acc
-          val newEnv: Env[RslType] = envs.insert(s, ty)
+          val constraints = ((s.last._1, ty), (ty, newVar) :: list) :: acc
+          val newEnv: Env[RslType] = envs.insert(s.last._1, ty)
           (constraints, newEnv)
         }
         val newEnv = uncheckedEnvs ++ env

@@ -114,6 +114,8 @@ case class ListT(inner: RslType) extends RslType
 case class ArrayT(inner: RslType) extends RslType
 case class RefT(ty: RslType) extends RslType
 
+case class PatternListT(minSize: Int) extends RslType
+
 object IntT extends RslType
 object BoolT extends RslType
 object StrT extends RslType
@@ -143,8 +145,8 @@ case class CompoundSubscript(pattern: RslVar, subscript: RslSubscript) extends R
 
 sealed class RslPattern extends RslAssignable
 
-case class TuplePattern(items: List[RslPattern]) extends RslPattern   // (a, b)
-case class ListPattern(elements: List[RslPattern]) extends RslPattern // hd :: tl
+case class TuplePattern(items: List[RslAssignable]) extends RslPattern   // (a, b)
+case class ListPattern(elements: List[RslAssignable]) extends RslPattern // hd :: tl
 case object WildcardPattern extends RslPattern                        // _
 
 case class RslVar(label: String) extends RslAssignable                // foo =    // not to confuse with NamedSubscript
@@ -164,6 +166,8 @@ case class SumDecl(name: String, ctors: List[Ctor]) extends RslDecl
 //case class ConstDecl extends RslDecl
 
 sealed class RslExp extends RslBlock
+
+case class RslScope(blocks: List[RslBlock]) // TODO: [2]
 
 // TODO: add Lazy construct
 
@@ -194,7 +198,7 @@ case class If(cond: RslExp, caseTrue: RslExp, caseElse: RslExp) extends RslExp
 case class Func(param: String, body: RslExp) extends RslExp
 case class Call(fn: RslExp, arg: RslExp) extends RslExp
 case class CallDyn(methodName: RslExp, arg: RslExp) extends RslExp
-case class Letrec(env: List[(RslAssignable, RslExp)], body: RslExp)
+case class Letrec(env: List[(RslAssignable, RslExp)], body: RslExp) extends RslExp
 case class Pair(first: RslExp, second: RslExp) extends RslExp
 case class IsAPair(value: RslExp) extends RslExp
 case class Fst(value: RslExp) extends RslExp
