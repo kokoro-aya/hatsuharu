@@ -5,8 +5,8 @@ import moe.irony.resil.sig.*
 import moe.irony.resil.sig.Binary.*
 import moe.irony.resil.sig.Logical.*
 
-def mkEnv(bindings: (String, RslExp)*): ResilEnv[RslExp] = {
-  ResilEnv[RslExp](bindings.toList)
+def mkEnv(bindings: (String, RslExp)*): List[(RslVar, RslExp)] = {
+  bindings.map{ (l, e) => (RslVar(l), e) }.toList
 }
 
 

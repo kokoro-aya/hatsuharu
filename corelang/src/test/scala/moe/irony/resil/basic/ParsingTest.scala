@@ -168,11 +168,11 @@ class ParsingTest extends munit.FunSuite:
     val (expr, rem) = Parser().parseExpr(tokens)
     val res =
       Letrec(
-        ResilEnv[RslExp](List(
-          ("a", I(3)),
-          ("b", B(false)),
-          ("c", S("abc"))
-        )),
+        List(
+          (RslVar("a"), I(3)),
+          (RslVar("b"), B(false)),
+          (RslVar("c"), S("abc"))
+        ),
         body = Binop(Binary.ADD, Variable("a"), Binop(Binary.ADD, Variable("b"), Variable("c")))
       )
     expr match
@@ -196,9 +196,9 @@ class ParsingTest extends munit.FunSuite:
     val (expr, rem) = Parser().parseExpr(tokens)
     val res =
       Letrec(
-        ResilEnv[RslExp](List(
-          ("foo", I(1))
-        )),
+        List(
+          (RslVar("foo"), I(1))
+        ),
         Binop(Binary.ADD, Variable("foo"), Variable("bar"))
       )
     expr match
