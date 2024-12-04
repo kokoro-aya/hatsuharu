@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, SumDecl, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslBlock, RslDecl, RslExp, RslProgram, RslSubscript, RslType, RslVal, S, Size, Snd, StrV, Struct, Subscript, Tail, TupleV, UnionV, UnitV, Update, Variable}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
 
 
 // TODO: refactor this
@@ -47,6 +47,18 @@ def newEnvironment: Environment =
 
 
 class Resil extends Rsl {
+  
+  def showSubscript(s: RslSubscript): String = s match
+    case NamedSubscript(label) => s".$label"
+    case NumberSubscript(value) => s"[$value]"
+    case CompoundSubscript(rslVar, subscript) => rslVar.label ++ showSubscript(subscript)
+
+  def showAssignable(a: RslAssignable) = a match
+    case p: RslPattern => p match
+      case TuplePattern(items) => "(" ++ items.mkString(", ") ++ ")"
+      case ListPattern(elements) => elements.mkString(" :: ")
+      case WildcardPattern => "_"
+    case RslVar(label) => label
 
   def showExp(exp: RslExp): String = exp match
     case Data(header, fields) =>
@@ -74,7 +86,7 @@ class Resil extends Rsl {
     case CallDyn(_, _) => "CallDyn"
     case Letrec(ctx, e) =>
       "let\n"
-        ++ ctx.backingField.map((s, ex) => s"  val $s = ${showExp(ex)}").mkString("\n")
+        ++ ctx.map((s, ex) => s"  val ${showAssignable(s)} = ${showExp(ex)}").mkString("\n")
         ++ "\n"
         ++ "in\n  "
         ++ showExp(e)
@@ -132,8 +144,59 @@ class Resil extends Rsl {
   private def buildSubscript(e: RslExp): RslSubscript = e match
     case S(value) => NamedSubscript(value)
     case I(value) => NumberSubscript(value)
-    case Subscript(value, subscript) => CompoundSubscript(buildSubscript(value), buildSubscript(subscript))
-    case _ => throw EvalError("Currently only (str, int) or nested patterns are allowed")
+    case Subscript(Variable(label), subscript) => CompoundSubscript(RslVar(label), buildSubscript(subscript))
+    case _ => throw EvalError("Currently only subscript based on variable with (int, str) subscripts are allowed")
+
+
+  def preUnapplyPattern(a: RslAssignable): List[(String, RslVal)] = {
+    a match
+      case _: RslSubscript => throw EvalError("Unapply pattern not applicable to subscripts")
+      case RslVar(label) =>
+        List((label, PromV(None)))
+      case p: RslPattern => p match
+        case WildcardPattern => List()
+        case TuplePattern(items) => items flatMap preUnapplyPattern
+        case ListPattern(elements) => elements flatMap preUnapplyPattern
+  }
+    
+  def unapplyPattern (a: RslAssignable) (vl: RslVal): List[(String, RslVal)] = {
+    a match
+      case _: RslSubscript => throw EvalError("Unapply pattern not applicable to subscripts")
+      case RslVar(label) => 
+        List((label, vl))
+      case p: RslPattern => p match
+        case WildcardPattern => List()
+        case TuplePattern(items) => vl match
+          case TupleV(values, arity) =>
+            if arity == items.size then
+              (items zip values).flatMap { (p, v) => unapplyPattern(p)(v) }
+            else
+              throw EvalError(s"Unapply a tuple of $arity elements to a list pattern of ${items.size} items")
+        case ListPattern(elements) => vl match
+          case ArrayV(values, length) =>
+            if length == elements.size then
+              (elements zip values).flatMap { (p, v) => unapplyPattern(p)(v) }
+            else
+              throw EvalError(s"Unapply an array of $length elements to a list pattern of ${elements.size} items")
+          case ListV(values) =>
+            if values.size == elements.size then
+              (elements zip values).flatMap { (p, v) => unapplyPattern(p)(v) }
+            else
+              throw EvalError(s"Unapply a list of ${values.size} elements to a list pattern of ${elements.size} items")
+  }
+  
+  def evaluateAndFillLetRecEnv(env: Environment) (exps: List[(RslAssignable, RslExp)]): Environment = {
+    val precomputedNewVarsAndAssignees = exps.map(_._1).flatMap(preUnapplyPattern)
+    val prefilledEnvs = precomputedNewVarsAndAssignees.foldLeft(env._2) { (acc, sv) => acc.insert(sv._1, sv._2) }
+    val evaluatedNewVarsAndAssignees = exps.foldLeft(prefilledEnvs) { (acc, sv) =>
+      val exi = evalExp(Environment(env._1, acc)) (sv._2)
+      val unapplied = unapplyPattern(sv._1)(exi)
+      unapplied.foldLeft(acc) { (accEnv, curr) =>
+        accEnv.update(curr._1) (curr._2)
+      }
+    }
+    Environment(env._1, evaluatedNewVarsAndAssignees)
+  }
 
   override def evalExp(env: Environment)(e: RslExp): RslVal = {
     e match
@@ -248,12 +311,8 @@ class Resil extends Rsl {
           case _ => throw EvalError ("[11] dyn call on unresolved name " + name + ", known:" + (env._2.dumpNames))
         case _ => throw EvalError ("[12] dyn call must be invoked on StrV(..), got " + show(vFLabel))
     case Letrec(exps, body) =>
-      val prefilledEnvs = exps.backingField.foldLeft(env._2) { (acc, sv) => acc.insert(sv._1, PromV(None)) }
-      val evaledEnvs = exps.backingField.foldLeft(prefilledEnvs) { (acc, sv) =>
-        val exi = evalExp(Environment(env._1, acc))(sv._2)
-        acc.update(sv._1)(exi)
-      }
-      evalExp(Environment(env._1, evaledEnvs))(body)
+      val scopedRecEnv = evaluateAndFillLetRecEnv(env)(exps)
+      evalExp(scopedRecEnv)(body)
     case Pair(first, second) =>
       val v1 = evalExp(env)(first)
       val v2 = evalExp(env)(second)

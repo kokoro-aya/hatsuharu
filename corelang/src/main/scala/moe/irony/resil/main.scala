@@ -137,6 +137,13 @@ def main(): Unit = {
   val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
 
   res1.map { it => Resil().show(it) }.foreach(println)
+  
+  
+  /*
+  
+      
+ 
+   */
 
 //  // TODO: add full workable example
 //

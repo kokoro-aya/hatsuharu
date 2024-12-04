@@ -132,18 +132,22 @@ sealed trait RslAssignable
 
 sealed class RslSubscript extends RslAssignable
 
+// foo.abc  foo[1]  foo[1].abc  foo.abc[1] = ???
+// In the future => replace subscript by full expression
+// what about desugar to "set(assign, value)"?
+
 case class NamedSubscript(label: String) extends RslSubscript
 case class NumberSubscript(value: Int) extends RslSubscript
-case class CompoundSubscript(pattern: RslSubscript, subscript: RslSubscript) extends RslSubscript
+case class CompoundSubscript(pattern: RslVar, subscript: RslSubscript) extends RslSubscript
 // TODO: Add dot operator ... precedence ?
 
 sealed class RslPattern extends RslAssignable
 
-case class TuplePattern(items: List[RslPattern]) extends RslPattern
-case class ListPattern(elements: List[RslPattern]) extends RslPattern
-case object WildcardPattern extends RslPattern
+case class TuplePattern(items: List[RslPattern]) extends RslPattern   // (a, b)
+case class ListPattern(elements: List[RslPattern]) extends RslPattern // hd :: tl
+case object WildcardPattern extends RslPattern                        // _
 
-case class RslVar(label: String) extends RslAssignable
+case class RslVar(label: String) extends RslAssignable                // foo =    // not to confuse with NamedSubscript
 
 case class RslProgram(blocks: List[RslBlock])
 
@@ -190,7 +194,7 @@ case class If(cond: RslExp, caseTrue: RslExp, caseElse: RslExp) extends RslExp
 case class Func(param: String, body: RslExp) extends RslExp
 case class Call(fn: RslExp, arg: RslExp) extends RslExp
 case class CallDyn(methodName: RslExp, arg: RslExp) extends RslExp
-case class Letrec(env: Env[RslExp], body: RslExp) extends RslExp
+case class Letrec(env: List[(RslAssignable, RslExp)], body: RslExp)
 case class Pair(first: RslExp, second: RslExp) extends RslExp
 case class IsAPair(value: RslExp) extends RslExp
 case class Fst(value: RslExp) extends RslExp
