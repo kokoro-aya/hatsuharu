@@ -68,25 +68,32 @@ class Typing extends ITyping:
     case Some(value) => typeToString(value)
     case None => "_"
     
-  def getPatternConstraints (p: RslPattern): (RslType, List[(String, RslType)]) =
+  def getPatternConstraints (p: RslPattern): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
     p match
       case TuplePattern(items) => 
         val resolved = items.map { a => getAssignableConstraints(a) }
         val tys = resolved.map(_._1)
-        val vars = resolved.flatMap(_._2)
-        (TupleT(tys), vars)
-      case ListPattern(_) => 
+        val cts = resolved.flatMap(_._2)
+        val vars = resolved.flatMap(_._3)
+        (TupleT(tys), List(), vars)
+      case ListPattern(items) =>
         val ty = newVarType
-        (ty, List(("", ListT(ty))))
+        val headTys = items.dropRight(1).map { i => getAssignableConstraints(i) }
+        val tys = headTys.map(_._1)
+        val cts = headTys.flatMap(_._2)
+        val endTy = getAssignableConstraints(items.last)
+        val newCts = tys.map { t => (t, ty) } ++ cts ++ ((ListT(ty), endTy._1) :: endTy._2)
+        val vars = headTys.flatMap(_._3) ++ endTy._3
+        (ListT(ty), newCts, vars)
       case WildcardPattern => throw TypeError("Wildcard pattern is not supported yet") // TODO
       
-  def getAssignableConstraints (a: RslAssignable): (RslType, List[(String, RslType)]) =
+  def getAssignableConstraints (a: RslAssignable): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
     a match
       case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
       case p: RslPattern => getPatternConstraints(p)
       case RslVar(label) =>
         val ty = newVarType
-        (ty, List((label, ty)))
+        (ty, List(), List((label, ty)))
 
   def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
     exp match
@@ -190,11 +197,11 @@ class Typing extends ITyping:
         val backfields = assigns
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
           val (sA, v) = sv
-          val (aT, s) = getAssignableConstraints(sA)
+          val (aT, cts, s) = getAssignableConstraints(sA)
           val (acc, envs) = zr
           val (ty, list) = getConstraints(envs)(v) (outerCons)
           val newVar = newVarType
-          val constraints = ((s.last._1, ty), (ty, newVar) :: (aT, ty) :: list) :: acc
+          val constraints = ((s.last._1, ty), (ty, newVar) :: (aT, ty) :: cts ++ list) :: acc
           val newEnv: Env[RslType] =
             s.foldLeft(envs.insert(s.last._1, ty)) { (accEnv, st) =>
               accEnv.insert(st._1, st._2)
@@ -456,7 +463,9 @@ class Typing extends ITyping:
   def typecheck(env: Env[RslType]) (exp: RslExp): Either[String, RslType] =
     try
       val (t, cons) = getConstraints(env) (exp) (List())
-      cons.reverse.foreach { (l, r) => unify(l)(r) }
+      cons.reverse.foreach { (l, r) =>
+        unify(l)(r)
+      }
       val typ = resolve(t)
       resetParamType()
       resetVarType()

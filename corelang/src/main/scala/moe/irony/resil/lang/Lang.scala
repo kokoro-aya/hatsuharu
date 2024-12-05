@@ -179,8 +179,15 @@ class Resil extends Rsl {
             else
               throw EvalError(s"Unapply an array of $length elements to a list pattern of ${elements.size} items")
           case ListV(values) =>
-            if values.size == elements.size then
-              (elements zip values).flatMap { (p, v) => unapplyPattern(p)(v) }
+            if elements.isEmpty then
+              if values.isEmpty then
+                return List()
+              else
+                throw EvalError("Unapply a non empty list to an empty list pattern")
+            if elements.size == 1 then
+              unapplyPattern(elements.head)(vl)
+            else if elements.size <= values.size then
+              unapplyPattern(elements.head)(values.head) ++ unapplyPattern(ListPattern(elements.tail))(ListV(values.tail))
             else
               throw EvalError(s"Unapply a list of ${values.size} elements to a list pattern of ${elements.size} items")
   }

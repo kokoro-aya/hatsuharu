@@ -179,19 +179,27 @@ def main(): Unit = {
 //  println(res)
 
 
+//  val expr = Letrec(
+//    List(
+//      (TuplePattern(List(RslVar("a"), RslVar("b"), RslVar("c"))),
+//        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
+//    ),
+//    Variable("b")
+//  )
+
   val expr = Letrec(
     List(
-      (TuplePattern(List(RslVar("a"), RslVar("b"), RslVar("c"))),
-        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
-    ),
-    Variable("b")
+      (ListPattern(List(RslVar("x"), RslVar("xs"))),
+        AList(List(I(1), I(2), I(3), I(4))
+          //          AList(List(I(1), Components(List(I(97), S("bar"), B(false))), 2))
+        ))),
+    Variable("xs")
   )
 
   Typing().typecheck(expr)
 
   val res = Resil().eval(expr)
   println(res)
-
 
 
 //  // TODO: add full workable example
