@@ -386,7 +386,7 @@ class Resil extends Rsl {
       evalExp(newEnvironment)(e)
     catch {
       case e: EvalError => ErrV("EvalError: " + e.message)
-      case e: Throwable => ErrV(e.getMessage)
+      case e: Throwable => ErrV(s"[${e.getClass.getCanonicalName}] ${e.getMessage}")
     }
 
   override def evalProgram(program: RslProgram): List[RslVal] =

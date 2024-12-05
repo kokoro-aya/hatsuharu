@@ -200,6 +200,16 @@ class SimpleTypingTest extends munit.FunSuite:
     assertEquals(Typing().typecheck(e1), Right(IntT))
   }
 
+  // TODO: test failed
+  /*
+      => Diff (- obtained, + expected)
+       Right(
+      -  value = ParamT(
+      -    param = "A"
+      -  )
+      +  value = moe.irony.resil.sig.IntT$@246e1fc8
+      )
+   */
   test("f") {
     val f = Letrec(
       mkEnv(

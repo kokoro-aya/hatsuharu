@@ -90,6 +90,8 @@ class EvaluatorTest extends munit.FunSuite:
     assertEquals(res, IntV(2))
   }
 
+  // Java: [java.lang.StackOverflowError] null
+  // JS: RangeError: Maximum call stack size exceeded
   test("stackoverflow in case of self-calls") {
     val expr =
       Letrec(
@@ -101,7 +103,7 @@ class EvaluatorTest extends munit.FunSuite:
       )
 
     val res = Resil().eval(expr)
-    assertEquals(res, ErrV("RangeError: Maximum call stack size exceeded"))
+    assertEquals(res, ErrV("[java.lang.StackOverflowError] null"))
   }
 
   test("self reduct to 10") {

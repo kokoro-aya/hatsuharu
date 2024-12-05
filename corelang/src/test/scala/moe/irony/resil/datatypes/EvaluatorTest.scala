@@ -60,7 +60,7 @@ class EvaluatorTest extends munit.FunSuite:
       
         List(
           (RslVar("a"), Array(mutable.ArraySeq(I(3), I(4), I(5)))),
-          (RslVar("_"), Update(Subscript(S("a"), I(2)), I(6)))
+          (RslVar("_"), Update(Subscript(Variable("a"), I(2)), I(6)))
         ),
       Variable("a"))
     val res = Resil().eval(expr)
