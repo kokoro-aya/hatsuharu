@@ -3,7 +3,7 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, Binary, Binop, BoolT, Call, Ctor, Data, Environment, Func, I, IntT, IntV, Letrec, Logop, Nth, Pair, ParamT, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, SumDecl, TagT, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, B, Binary, Binop, BoolT, Call, Components, Ctor, Data, Environment, Func, I, IntT, IntV, Letrec, ListPattern, Logop, Nth, Pair, ParamT, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, SumDecl, TagT, TuplePattern, VarT, Variable}
 
 import scala.collection.mutable
 
@@ -118,8 +118,8 @@ def eval1() = {
     println()
 }
 
-@main
-def main(): Unit = {
+def eval2() = {
+
   val blocks1 =
     List[RslBlock](
       SumDecl(
@@ -127,7 +127,7 @@ def main(): Unit = {
           Ctor("Square", List("side" -> IntT)),
           Ctor("Circle", List("radius" -> IntT)),
           Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
-      )),
+        )),
       Data("Square", List(I(16))),
       Data("Rectangle", List(I(7), I(8)))
     )
@@ -137,13 +137,62 @@ def main(): Unit = {
   val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
 
   res1.map { it => Resil().show(it) }.foreach(println)
-  
-  
-  /*
-  
-      
- 
-   */
+}
+
+@main
+def main(): Unit = {
+//  val expr = Letrec(
+//    List(
+//      (RslVar("a"), Components(List(I(1), S("str")), 2))
+//    ),
+//    Variable("a")
+//  )
+//
+//  Typing().typecheck(expr)
+//
+//  val res = Resil().eval(expr)
+//  println(res)
+
+//  val expr = Letrec(
+//    List(
+//      (TuplePattern(List(RslVar("a"), RslVar("b"))), Components(List(I(1), S("str")), 2))
+//    ),
+//    Variable("a")
+//  )
+//
+//  Typing().typecheck(expr)
+//
+//  val res = Resil().eval(expr)
+//  println(res)
+
+//  val expr = Letrec(
+//    List(
+//      (TuplePattern(List(RslVar("a"), RslVar("b"))),
+//        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
+//    ),
+//    Variable("b")
+//  )
+//
+//  Typing().typecheck(expr)
+//
+//  val res = Resil().eval(expr)
+//  println(res)
+
+
+  val expr = Letrec(
+    List(
+      (TuplePattern(List(RslVar("a"), RslVar("b"), RslVar("c"))),
+        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
+    ),
+    Variable("b")
+  )
+
+  Typing().typecheck(expr)
+
+  val res = Resil().eval(expr)
+  println(res)
+
+
 
 //  // TODO: add full workable example
 //

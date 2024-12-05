@@ -68,21 +68,25 @@ class Typing extends ITyping:
     case Some(value) => typeToString(value)
     case None => "_"
     
-  def getPatternConstraints (p: RslPattern): List[(String, RslType)] =
+  def getPatternConstraints (p: RslPattern): (RslType, List[(String, RslType)]) =
     p match
       case TuplePattern(items) => 
-        val resolved = items.flatMap { a => getAssignableConstraints(a) }
-        resolved :+ ("", TupleT(resolved.map(_._2)))
+        val resolved = items.map { a => getAssignableConstraints(a) }
+        val tys = resolved.map(_._1)
+        val vars = resolved.flatMap(_._2)
+        (TupleT(tys), vars)
       case ListPattern(_) => 
         val ty = newVarType
-        List(("", ListT(ty)))
+        (ty, List(("", ListT(ty))))
       case WildcardPattern => throw TypeError("Wildcard pattern is not supported yet") // TODO
       
-  def getAssignableConstraints (a: RslAssignable): List[(String, RslType)] =
+  def getAssignableConstraints (a: RslAssignable): (RslType, List[(String, RslType)]) =
     a match
       case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
       case p: RslPattern => getPatternConstraints(p)
-      case RslVar(label) => List((label, newVarType))
+      case RslVar(label) =>
+        val ty = newVarType
+        (ty, List((label, ty)))
 
   def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
     exp match
@@ -186,12 +190,15 @@ class Typing extends ITyping:
         val backfields = assigns
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
           val (sA, v) = sv
-          val s = getAssignableConstraints(sA)
+          val (aT, s) = getAssignableConstraints(sA)
           val (acc, envs) = zr
           val (ty, list) = getConstraints(envs)(v) (outerCons)
           val newVar = newVarType
-          val constraints = ((s.last._1, ty), (ty, newVar) :: list) :: acc
-          val newEnv: Env[RslType] = envs.insert(s.last._1, ty)
+          val constraints = ((s.last._1, ty), (ty, newVar) :: (aT, ty) :: list) :: acc
+          val newEnv: Env[RslType] =
+            s.foldLeft(envs.insert(s.last._1, ty)) { (accEnv, st) =>
+              accEnv.insert(st._1, st._2)
+            }
           (constraints, newEnv)
         }
         val newEnv = uncheckedEnvs ++ env
