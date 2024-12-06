@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
 
 
 // TODO: refactor this
@@ -57,6 +57,8 @@ class Resil extends Rsl {
     case p: RslPattern => p match
       case TuplePattern(items) => "(" ++ items.mkString(", ") ++ ")"
       case ListPattern(elements) => elements.mkString(" :: ")
+      case RecordPattern(fields) => "{" ++ fields.mkString(", ") ++ "}"
+      case CtorPattern(name, fields) => name ++ "(" ++ fields.mkString(", ") ++ ")"
       case WildcardPattern => "_"
     case RslVar(label) => label
 
@@ -157,6 +159,8 @@ class Resil extends Rsl {
         case WildcardPattern => List()
         case TuplePattern(items) => items flatMap preUnapplyPattern
         case ListPattern(elements) => elements flatMap preUnapplyPattern
+        case RecordPattern(fields) => List()
+        case CtorPattern(name, fields) => List()
   }
     
   def unapplyPattern (a: RslAssignable) (vl: RslVal): List[(String, RslVal)] = {
@@ -166,12 +170,29 @@ class Resil extends Rsl {
         List((label, vl))
       case p: RslPattern => p match
         case WildcardPattern => List()
+        case RecordPattern(fields) => vl match
+          case RecordV(header, values) =>
+            val fieldNames = fields.map(_.label).toSet
+            val actualNames = values.keySet
+            if fieldNames == actualNames then
+              values.toList
+            else
+              throw EvalError("Unapply a record with record pattern - mismatch fields")
+          case _ => throw EvalError("Unapply a non record value on a record pattern")
+        case CtorPattern(name, fields) => vl match
+          case UnionV(header, values) =>
+            if fields.size == values.size then
+              fields.map(_.label) zip values
+            else
+              throw EvalError("Unapply an union value with constructor pattern - mismatch fields")
+          case _ => throw EvalError("Unapply a non record value on a record pattern")
         case TuplePattern(items) => vl match
           case TupleV(values, arity) =>
             if arity == items.size then
               (items zip values).flatMap { (p, v) => unapplyPattern(p)(v) }
             else
-              throw EvalError(s"Unapply a tuple of $arity elements to a list pattern of ${items.size} items")
+              throw EvalError(s"Unapply a tuple of $arity elements to a tuple pattern of ${items.size} items")
+          case _ => throw EvalError("Unapply a non tuple value on a tuple pattern")
         case ListPattern(elements) => vl match
           case ArrayV(values, length) =>
             if length == elements.size then
@@ -190,6 +211,8 @@ class Resil extends Rsl {
               unapplyPattern(elements.head)(values.head) ++ unapplyPattern(ListPattern(elements.tail))(ListV(values.tail))
             else
               throw EvalError(s"Unapply a list of ${values.size} elements to a list pattern of ${elements.size} items")
+          case _ => throw EvalError("Unapply a non list value on a list pattern")
+          // TODO: array
   }
   
   def evaluateAndFillLetRecEnv(env: Environment) (exps: List[(RslAssignable, RslExp)]): Environment = {

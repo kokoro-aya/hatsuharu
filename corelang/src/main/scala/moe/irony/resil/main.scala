@@ -3,7 +3,7 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, B, Binary, Binop, BoolT, Call, Components, Ctor, Data, Environment, Func, I, IntT, IntV, Letrec, ListPattern, Logop, Nth, Pair, ParamT, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, SumDecl, TagT, TuplePattern, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, B, Binary, Binop, BoolT, Call, Components, Ctor, CtorPattern, Data, Environment, Func, I, IntT, IntV, Letrec, ListPattern, Logop, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, VarT, Variable}
 
 import scala.collection.mutable
 
@@ -200,24 +200,64 @@ def main(): Unit = {
 //
 //  val res = Resil().eval(expr)
 //  println(res)
-  
+
   // Error: [1,2,3,"S"], [[1,2,3],["S","Z"]]
+
+//  val expr = Letrec(
+//    List(
+//      (TuplePattern(List(ListPattern(List(RslVar("x"), RslVar("xs"))), RslVar("ys"))),
+//        Components(
+//          List(
+//            (AList(List(I(1), I(2), I(3), I(4)))),
+//            (AList(List(I(1), I(2), I(3), I(4))))
+//        ), 2))),
+//    Variable("ys")
+//  )
+//
+//  Typing().typecheck(expr)
+//
+//  val res = Resil().eval(expr)
+//  println(res)
 
   val expr = Letrec(
     List(
-      (TuplePattern(List(ListPattern(List(RslVar("x"), RslVar("xs"))), RslVar("ys"))),
-        Components(
-          List(
-            (AList(List(I(1), I(2), I(3), I(4)))),
-            (AList(List(I(1), I(2), I(3), I(4))))
-        ), 2))),
-    Variable("ys")
+      (RecordPattern(List(
+        RslVar("a"), RslVar("b"), RslVar("c")
+      )),
+        Struct(None, Map("a" -> I(3), "b" -> I(4), "c" -> B(false))))
+    ),
+    Variable("c")
   )
 
   Typing().typecheck(expr)
 
   val res = Resil().eval(expr)
   println(res)
+
+  val blocks1 =
+    List[RslBlock](
+      SumDecl(
+        "Shape", List(
+          Ctor("Square", List("side" -> IntT)),
+          Ctor("Circle", List("radius" -> IntT)),
+          Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
+        )),
+      Letrec(
+        List(
+          (CtorPattern("Rectangle", List(
+            RslVar("width"), RslVar("height")
+          )),
+            Data("Rectangle", List(I(15), I(7))))
+        ),
+        Variable("width")
+      )
+    )
+
+  Typing().typecheck(blocks1)
+
+  val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
+
+  res1.map { it => Resil().show(it) }.foreach(println)
 
 
 //  // TODO: add full workable example
