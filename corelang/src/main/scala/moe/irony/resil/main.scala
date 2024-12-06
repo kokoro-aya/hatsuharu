@@ -187,13 +187,31 @@ def main(): Unit = {
 //    Variable("b")
 //  )
 
+//  val expr = Letrec(
+//    List(
+//      (ListPattern(List(RslVar("x"), RslVar("xs"))),
+//        AList(List(I(1), I(2), I(3), I(4))
+//          //          AList(List(I(1), Components(List(I(97), S("bar"), B(false))), 2))
+//        ))),
+//    Variable("x")
+//  )
+//
+//  Typing().typecheck(expr)
+//
+//  val res = Resil().eval(expr)
+//  println(res)
+  
+  // Error: [1,2,3,"S"], [[1,2,3],["S","Z"]]
+
   val expr = Letrec(
     List(
-      (ListPattern(List(RslVar("x"), RslVar("xs"))),
-        AList(List(I(1), I(2), I(3), I(4))
-          //          AList(List(I(1), Components(List(I(97), S("bar"), B(false))), 2))
-        ))),
-    Variable("xs")
+      (TuplePattern(List(ListPattern(List(RslVar("x"), RslVar("xs"))), RslVar("ys"))),
+        Components(
+          List(
+            (AList(List(I(1), I(2), I(3), I(4)))),
+            (AList(List(I(1), I(2), I(3), I(4))))
+        ), 2))),
+    Variable("ys")
   )
 
   Typing().typecheck(expr)

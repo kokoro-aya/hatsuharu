@@ -147,6 +147,8 @@ sealed class RslPattern extends RslAssignable
 
 case class TuplePattern(items: List[RslAssignable]) extends RslPattern   // (a, b)
 case class ListPattern(elements: List[RslAssignable]) extends RslPattern // hd :: tl
+//case class RecordPattern(fields: Map[String, RslAssignable]) extends 
+//case class CtorPattern()
 case object WildcardPattern extends RslPattern                        // _
 
 case class RslVar(label: String) extends RslAssignable                // foo =    // not to confuse with NamedSubscript

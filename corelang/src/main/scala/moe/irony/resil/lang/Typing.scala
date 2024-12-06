@@ -82,7 +82,7 @@ class Typing extends ITyping:
         val tys = headTys.map(_._1)
         val cts = headTys.flatMap(_._2)
         val endTy = getAssignableConstraints(items.last)
-        val newCts = tys.map { t => (t, ty) } ++ cts ++ ((ListT(ty), endTy._1) :: endTy._2)
+        val newCts = tys.map { t => (ty, t) } ++ cts ++ ((ListT(ty), endTy._1) :: endTy._2)
         val vars = headTys.flatMap(_._3) ++ endTy._3
         (ListT(ty), newCts, vars)
       case WildcardPattern => throw TypeError("Wildcard pattern is not supported yet") // TODO
@@ -201,7 +201,7 @@ class Typing extends ITyping:
           val (acc, envs) = zr
           val (ty, list) = getConstraints(envs)(v) (outerCons)
           val newVar = newVarType
-          val constraints = ((s.last._1, ty), (ty, newVar) :: (aT, ty) :: cts ++ list) :: acc
+          val constraints = ((s.last._1, ty), (ty, newVar) :: cts ++ ( (aT, ty) :: list)) :: acc
           val newEnv: Env[RslType] =
             s.foldLeft(envs.insert(s.last._1, ty)) { (accEnv, st) =>
               accEnv.insert(st._1, st._2)
@@ -300,14 +300,10 @@ class Typing extends ITyping:
           else
             unify (lty) (rty)
         }
-    case (ListT(ty1), ListT(ty2)) => 
-      if ty1 == ty2 then ()
-      else
-        throw TypeError("List inner types mismatch")
+    case (ListT(ty1), ListT(ty2)) =>
+      unify (ty1) (ty2)
     case (ArrayT(ty1), ArrayT(ty2)) =>
-      if ty1 == ty2 then ()
-      else
-        throw TypeError("Array inner types mismatch")
+      unify (ty1) (ty2)
     case (RefT(ty1), RefT(ty2)) => throw NotImplementedError()
     case (IntT, IntT) => ()
     case (BoolT, BoolT) => ()
