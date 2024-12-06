@@ -240,7 +240,7 @@ def main(): Unit = {
         "Shape", List(
           Ctor("Square", List("side" -> IntT)),
           Ctor("Circle", List("radius" -> IntT)),
-          Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
+          Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
         )),
       Letrec(
         List(

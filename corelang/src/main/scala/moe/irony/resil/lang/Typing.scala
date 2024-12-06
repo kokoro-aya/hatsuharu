@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Pair, PairT, ParamT, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, CtorPattern, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Pair, PairT, ParamT, RecordPattern, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern}
 import moe.irony.resil.utils.IdentifierGenerator
 
 import Console.{BLUE, RED, RESET}
@@ -68,29 +68,43 @@ class Typing extends ITyping:
     case Some(value) => typeToString(value)
     case None => "_"
     
-  def getPatternConstraints (p: RslPattern): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
+  def getPatternConstraints (env: Env[RslType]) (p: RslPattern): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
     p match
+      case RecordPattern(fields) =>
+        val ty = newVarType
+        val recTy = RecordT(None, fields.map { f => (f.label, newVarType) })
+        (ty, List((ty, recTy)), recTy.types)
+      case CtorPattern(name, fields) =>
+        val res: Option[RslType] = env.lookupBy {
+          case DataT(dataName, ctors) => ctors.keySet.contains(name)
+          case _ => false
+        }
+        res match
+          case Some(ty @ DataT(dataName, ctors)) =>
+            val Ctor(ctorName, ctorFields) = ctors(name)
+            (ty, List(), ctorFields)
+          case _ => throw TypeError(s"No constructor $name found in registered types for pattern matching")
       case TuplePattern(items) => 
-        val resolved = items.map { a => getAssignableConstraints(a) }
+        val resolved = items.map { a => getAssignableConstraints(env)(a) }
         val tys = resolved.map(_._1)
         val cts = resolved.flatMap(_._2)
         val vars = resolved.flatMap(_._3)
         (TupleT(tys), List(), vars)
       case ListPattern(items) =>
         val ty = newVarType
-        val headTys = items.dropRight(1).map { i => getAssignableConstraints(i) }
+        val headTys = items.dropRight(1).map { i => getAssignableConstraints(env)(i) }
         val tys = headTys.map(_._1)
         val cts = headTys.flatMap(_._2)
-        val endTy = getAssignableConstraints(items.last)
+        val endTy = getAssignableConstraints(env)(items.last)
         val newCts = tys.map { t => (ty, t) } ++ cts ++ ((ListT(ty), endTy._1) :: endTy._2)
         val vars = headTys.flatMap(_._3) ++ endTy._3
         (ListT(ty), newCts, vars)
       case WildcardPattern => throw TypeError("Wildcard pattern is not supported yet") // TODO
       
-  def getAssignableConstraints (a: RslAssignable): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
+  def getAssignableConstraints (env: Env[RslType]) (a: RslAssignable): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
     a match
       case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
-      case p: RslPattern => getPatternConstraints(p)
+      case p: RslPattern => getPatternConstraints(env)(p)
       case RslVar(label) =>
         val ty = newVarType
         (ty, List(), List((label, ty)))
@@ -197,9 +211,9 @@ class Typing extends ITyping:
         val backfields = assigns
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
           val (sA, v) = sv
-          val (aT, cts, s) = getAssignableConstraints(sA)
+          val (aT, cts, s) = getAssignableConstraints(env)(sA)
           val (acc, envs) = zr
-          val (ty, list) = getConstraints(envs)(v) (outerCons)
+          val (ty, list) = getConstraints(envs ++ env)(v) (outerCons)
           val newVar = newVarType
           val constraints = ((s.last._1, ty), (ty, newVar) :: cts ++ ( (aT, ty) :: list)) :: acc
           val newEnv: Env[RslType] =
@@ -256,7 +270,7 @@ class Typing extends ITyping:
         case Some((_, adtCtor)) =>
           val labelsInDataCtor = adtCtor.fields.map(_._1)
           val labelsInVariantCtor = ctor.fields.map(_._1)
-          if exactMatching(labelsInVariantCtor, labelsInDataCtor) then
+          if ! exactMatching(labelsInVariantCtor, labelsInDataCtor) then
             throw TypeError(s"Fields of variant ${ctor.name} and its ADT $name1 do not match")
           else
             val typesInDataCtor = adtCtor.fields.toList.sortBy(_._1).map(_._2)
