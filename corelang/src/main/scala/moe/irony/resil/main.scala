@@ -297,31 +297,31 @@ def main(): Unit = {
 //      )
       Match(Data("Rectangle", List(I(15), I(7))),
         List(
-          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square I"), Variable("largeness")), 2)),
+          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square I"), Variable("largeness"), I(0)), 2)),
           (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect I"), Variable("w"), Variable("h")), 3)),
-          (WildcardPattern, S("__")),
+          (WildcardPattern, Components(List(S("Other case"), I(0), I(0)), 3)),
         )
       ),
       Match(Data("Circle", List(I(22))),
         List(
           (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square II"), Variable("largeness")), 2)),
-          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect II"), Variable("w"), Variable("h")), 3)),
-          (WildcardPattern, S("Other case")),
+          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect II"), Binop(Binary.ADD, Variable("w"), Variable("h"))), 2)),
+          (WildcardPattern, Components(List(S("Other case"), I(0)), 2)),
         )
       )
     )
 
 
 
-  blocks2.tail.foreach {
+  blocks2.tail.zipWithIndex.foreach { (it, i) => it match
     case decl: RslDecl => ()
     case exp: RslExp => {
-      println(Resil().showExp(exp))
+      println(s"[Case $i]:\n" ++  Resil().showExp(exp) ++ "\n" )
     }
     case _ => ()
   }
 
-//  Typing().typecheck(blocks2)
+  Typing().typecheck(blocks2)
 
   val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
 

@@ -119,7 +119,7 @@ class Resil extends Rsl {
       f"ref(${show(value)})"
     case IntV(value) => value.toString
     case BoolV(value) => value.toString
-    case StrV(value) => value
+    case StrV(value) => s"\"$value\""
     case PairV(first, second) => f"$first, $second"
     case UnitV() => "unit"
     case ClosV(_, _) => "#closure"
