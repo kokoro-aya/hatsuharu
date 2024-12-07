@@ -1,7 +1,9 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, Match, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
+
+import scala.util.boundary
 
 
 // TODO: refactor this
@@ -92,6 +94,10 @@ class Resil extends Rsl {
         ++ "\n"
         ++ "in\n  "
         ++ showExp(e)
+    case Match(e, arms) =>
+      showExp(e) + " match {\n"
+        ++ arms.map((s, ex) => s"  case ${showAssignable(s)} => ${showExp(ex)}").mkString("\n")
+        ++ "}"
     case Pair(_, _) => "Pair"
     case IsAPair(_) => "IsAPair"
     case Fst(_) => "Fst"
@@ -228,6 +234,73 @@ class Resil extends Rsl {
     Environment(env._1, evaluatedNewVarsAndAssignees)
   }
 
+  def extractAndFillMatchingEnv(p: RslAssignable)(v: RslVal): Env[RslVal] = (p, v) match
+    case (CtorPattern(name, fields), UnionV(header, dataFields)) =>
+      if name == header && fields.size == dataFields.size then
+        val emptyRslEnv: Env[RslVal] = ResilEnv[RslVal]()
+        (fields zip dataFields).foldLeft(emptyRslEnv) { (acc, fv) =>
+          acc ++ extractAndFillMatchingEnv(fv._1)(fv._2)
+        }
+      else
+        throw EvalError("Mismatch UnionV and constructor pattern")
+    case (ListPattern(elements), ListV(values)) =>
+      if elements.isEmpty then
+        if values.isEmpty then
+          return ResilEnv[RslVal]()
+        else
+          throw EvalError("Extracting a non empty list to an empty list pattern")
+      if elements.size == 1 then
+        extractAndFillMatchingEnv(elements.head)(v)
+      else if elements.size <= values.size then
+        extractAndFillMatchingEnv(elements.head)(values.head) ++ extractAndFillMatchingEnv(ListPattern(elements.tail))(ListV(values.tail))
+      else
+        throw EvalError(s"Extracting a list of ${values.size} elements to a list pattern of ${elements.size} items")
+    case (RecordPattern(fields), RecordV(header, values)) =>
+      val fieldNames = fields.map(_.label).toSet
+      val actualNames = values.keySet
+      val emptyRslEnv: Env[RslVal] = ResilEnv[RslVal]()
+      if fieldNames == actualNames then
+        fields.foldLeft(emptyRslEnv) { (acc, f) =>
+          val v = values(f.label)
+          acc ++ extractAndFillMatchingEnv(f)(v)
+        }
+      else
+        throw EvalError("Extracting a record with record pattern - mismatch fields")
+    case (TuplePattern(items), TupleV(values, arity)) =>
+      if arity == items.size then
+        val emptyRslEnv: Env[RslVal] = ResilEnv[RslVal]()
+        (items zip values).foldLeft(emptyRslEnv) { (acc, fv) =>
+          acc ++ extractAndFillMatchingEnv(fv._1)(fv._2)
+        }
+      else
+        throw EvalError(s"Unapply a tuple of $arity elements to a tuple pattern of ${items.size} items")
+    case (RslVar(label), _) => ResilEnv[RslVal](List((label, v)))
+    case (WildcardPattern, _) => ResilEnv[RslVal]()
+
+  def currentArmMatches(p: RslAssignable)(v: RslVal): Boolean = (p, v) match
+    case (CtorPattern(name, fields), UnionV(header, dataFields)) =>
+      return name == header && fields.size == dataFields.size
+    case (ListPattern(elements), ListV(values)) =>
+      return elements.size <= values.size
+    case (RecordPattern(fields), RecordV(header, values)) =>
+      val fieldNames = fields.map(_.label).toSet
+      val actualNames = values.keySet
+      return fieldNames == actualNames
+    case (TuplePattern(items), TupleV(values, arity)) =>
+      return arity == items.size
+    case (RslVar(label), _) => return true
+    case (WildcardPattern, _) => return true
+
+  def findActualArmOnMatch(env: Environment)(arms: List[(RslAssignable, RslExp)])(v: RslVal): RslVal = {
+    boundary:
+      arms.foreach{ (f, exp) =>
+        if currentArmMatches(f)(v) then
+          val newEnv = extractAndFillMatchingEnv(f)(v)
+          boundary.break(evalExp(env ++ newEnv)(exp))
+      }
+      UnitV()
+  }
+
   override def evalExp(env: Environment)(e: RslExp): RslVal = {
     e match
     case Data(label, fields) =>
@@ -343,6 +416,9 @@ class Resil extends Rsl {
     case Letrec(exps, body) =>
       val scopedRecEnv = evaluateAndFillLetRecEnv(env)(exps)
       evalExp(scopedRecEnv)(body)
+    case Match(exp, cases) =>
+      val expRes = evalExp(env)(exp)
+      findActualArmOnMatch(env)(cases)(expRes)
     case Pair(first, second) =>
       val v1 = evalExp(env)(first)
       val v2 = evalExp(env)(second)

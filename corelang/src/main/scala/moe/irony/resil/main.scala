@@ -259,7 +259,6 @@ def main(): Unit = {
       )
     )
 
-  Typing().typecheck(blocks1)
 
   blocks1(1) match
     case decl: RslDecl => ()
@@ -268,9 +267,65 @@ def main(): Unit = {
     }
     case _ => ()
 
+  Typing().typecheck(blocks1)
+
   val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
 
-  res1.map { it => Resil().show(it) }.foreach(println)
+  res1.tail.map { it => Resil().show(it) }.foreach(println)
+
+
+
+  println()
+  println()
+
+  val blocks2 =
+    List[RslBlock](
+      SumDecl(
+        "Shape", List(), List(
+          Ctor("Square", List("side" -> IntT)),
+          Ctor("Circle", List("radius" -> IntT)),
+          Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
+        )),
+//      Letrec(
+//        List(
+//          (CtorPattern("Rectangle", List(
+//            RslVar("width"), RslVar("height")
+//          )),
+//            Data("Rectangle", List(I(15), I(7))))
+//        ),
+//        Variable("width")
+//      )
+      Match(Data("Rectangle", List(I(15), I(7))),
+        List(
+          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square I"), Variable("largeness")), 2)),
+          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect I"), Variable("w"), Variable("h")), 3)),
+          (WildcardPattern, S("__")),
+        )
+      ),
+      Match(Data("Circle", List(I(22))),
+        List(
+          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square II"), Variable("largeness")), 2)),
+          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect II"), Variable("w"), Variable("h")), 3)),
+          (WildcardPattern, S("Other case")),
+        )
+      )
+    )
+
+
+
+  blocks2.tail.foreach {
+    case decl: RslDecl => ()
+    case exp: RslExp => {
+      println(Resil().showExp(exp))
+    }
+    case _ => ()
+  }
+
+//  Typing().typecheck(blocks2)
+
+  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
+
+  res2.tail.map { it => Resil().show(it) }.foreach(println)
 
 
 //  // TODO: add full workable example
