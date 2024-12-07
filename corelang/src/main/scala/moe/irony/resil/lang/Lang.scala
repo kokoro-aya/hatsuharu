@@ -53,12 +53,12 @@ class Resil extends Rsl {
     case NumberSubscript(value) => s"[$value]"
     case CompoundSubscript(rslVar, subscript) => rslVar.label ++ showSubscript(subscript)
 
-  def showAssignable(a: RslAssignable) = a match
+  def showAssignable(a: RslAssignable): String = a match
     case p: RslPattern => p match
-      case TuplePattern(items) => "(" ++ items.mkString(", ") ++ ")"
-      case ListPattern(elements) => elements.mkString(" :: ")
-      case RecordPattern(fields) => "{" ++ fields.mkString(", ") ++ "}"
-      case CtorPattern(name, fields) => name ++ "(" ++ fields.mkString(", ") ++ ")"
+      case TuplePattern(items) => "(" ++ items.map(showAssignable).mkString(", ") ++ ")"
+      case ListPattern(elements) => elements.map(showAssignable).mkString(" :: ")
+      case RecordPattern(fields) => "{" ++ fields.map(showAssignable).mkString(", ") ++ "}"
+      case CtorPattern(name, fields) => name ++ "(" ++ fields.map(showAssignable).mkString(", ") ++ ")"
       case WildcardPattern => "_"
     case RslVar(label) => label
 

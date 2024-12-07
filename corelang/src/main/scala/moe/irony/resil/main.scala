@@ -230,10 +230,15 @@ def main(): Unit = {
     Variable("c")
   )
 
+  println(Resil().showExp(expr))
+
   Typing().typecheck(expr)
 
   val res = Resil().eval(expr)
   println(res)
+
+  println()
+  println()
 
   val blocks1 =
     List[RslBlock](
@@ -255,6 +260,13 @@ def main(): Unit = {
     )
 
   Typing().typecheck(blocks1)
+
+  blocks1(1) match
+    case decl: RslDecl => ()
+    case exp: RslExp => {
+      println(Resil().showExp(exp))
+    }
+    case _ => ()
 
   val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
 
