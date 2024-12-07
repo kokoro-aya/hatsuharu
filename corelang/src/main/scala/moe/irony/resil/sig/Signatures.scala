@@ -153,6 +153,7 @@ case class RecordPattern(fields: List[RslVar]) extends RslPattern // { foo, bar 
 case class CtorPattern(name: String, fields: List[RslVar]) extends RslPattern // Cat(a, b)
 case object WildcardPattern extends RslPattern                        // _
 
+case class RslTypedVar(rslVar: RslAssignable, typ: RslType) extends RslAssignable
 case class RslVar(label: String) extends RslAssignable                // foo =    // not to confuse with NamedSubscript
 
 case class RslProgram(blocks: List[RslBlock])

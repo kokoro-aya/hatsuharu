@@ -3,7 +3,7 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, ActualMethodDecl, AnyClass, B, Binary, Binop, BoolT, Call, ClassBlock, ClassDecl, ClassTreeNode, Components, Ctor, CtorPattern, Data, Environment, Func, FuncT, I, InstanceDecl, IntT, IntV, Letrec, ListPattern, Logop, Match, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslClassTree, RslDecl, RslExp, RslPattern, RslType, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, TypeParamT, VarT, Variable, VirtualMethodDecl, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, ActualMethodDecl, AnyClass, B, Binary, Binop, BoolT, Call, ClassBlock, ClassDecl, ClassTreeNode, Components, Ctor, CtorPattern, Data, Environment, Func, FuncT, I, InstanceDecl, IntT, IntV, Letrec, ListPattern, Logop, Match, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslClassTree, RslDecl, RslExp, RslPattern, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, TypeParamT, VarT, Variable, VirtualMethodDecl, WildcardPattern}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -327,6 +327,25 @@ def main(): Unit = {
 
   res2.tail.map { it => Resil().show(it) }.foreach(println)
 
+
+//  val expr1 = Letrec(
+//    List(
+//      (TuplePattern(List(
+//        RslVar("a"), RslVar("b"), RslTypedVar(RslVar("c"), BoolT))
+//      ),
+//        Components(List(I(3), I(4), I(3)), 3))
+//    ),
+//    Variable("c")
+//  )
+//
+//  Typing().typecheck(expr1)
+  
+  
+  /*  
+      val map = \f => \ys => ys match
+        case [] => []
+        case x :: xs => f x :: map xs
+   */
 
 //  // TODO: add full workable example
 //

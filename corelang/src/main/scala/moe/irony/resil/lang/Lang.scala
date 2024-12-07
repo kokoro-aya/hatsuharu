@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, Match, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, Match, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
 
 import scala.util.boundary
 
@@ -62,6 +62,7 @@ class Resil extends Rsl {
       case RecordPattern(fields) => "{" ++ fields.map(showAssignable).mkString(", ") ++ "}"
       case CtorPattern(name, fields) => name ++ "(" ++ fields.map(showAssignable).mkString(", ") ++ ")"
       case WildcardPattern => "_"
+    case RslTypedVar(va, ty) => showAssignable(va) ++ ": " ++ Typing().typeToString(ty)
     case RslVar(label) => label
 
   def showExp(exp: RslExp): String = exp match
@@ -159,6 +160,7 @@ class Resil extends Rsl {
   def preUnapplyPattern(a: RslAssignable): List[(String, RslVal)] = {
     a match
       case _: RslSubscript => throw EvalError("Unapply pattern not applicable to subscripts")
+      case RslTypedVar(rslVar, _) => preUnapplyPattern(rslVar)
       case RslVar(label) =>
         List((label, PromV(None)))
       case p: RslPattern => p match
@@ -172,6 +174,7 @@ class Resil extends Rsl {
   def unapplyPattern (a: RslAssignable) (vl: RslVal): List[(String, RslVal)] = {
     a match
       case _: RslSubscript => throw EvalError("Unapply pattern not applicable to subscripts")
+      case RslTypedVar(rslVar, _) => unapplyPattern(rslVar)(vl)
       case RslVar(label) => 
         List((label, vl))
       case p: RslPattern => p match
@@ -275,6 +278,7 @@ class Resil extends Rsl {
       else
         throw EvalError(s"Unapply a tuple of $arity elements to a tuple pattern of ${items.size} items")
     case (RslVar(label), _) => ResilEnv[RslVal](List((label, v)))
+    case (RslTypedVar(rslVar, _), _) => extractAndFillMatchingEnv(rslVar)(v)
     case (WildcardPattern, _) => ResilEnv[RslVal]()
 
   def currentArmMatches(p: RslAssignable)(v: RslVal): Boolean = (p, v) match
@@ -289,6 +293,7 @@ class Resil extends Rsl {
     case (TuplePattern(items), TupleV(values, arity)) =>
       return arity == items.size
     case (RslVar(label), _) => return true
+    case (RslTypedVar(rslVar, _), _) => currentArmMatches(rslVar)(v)
     case (WildcardPattern, _) => return true
 
   def findActualArmOnMatch(env: Environment)(arms: List[(RslAssignable, RslExp)])(v: RslVal): RslVal = {

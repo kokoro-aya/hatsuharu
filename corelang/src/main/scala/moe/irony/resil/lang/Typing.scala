@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, CtorPattern, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Match, Pair, PairT, ParamT, RecordPattern, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, CtorPattern, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Match, Pair, PairT, ParamT, RecordPattern, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslTypedVar, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern}
 import moe.irony.resil.utils.IdentifierGenerator
 
 import Console.{BLUE, RED, RESET}
@@ -92,7 +92,7 @@ class Typing extends ITyping:
         val tys = resolved.map(_._1)
         val cts = resolved.flatMap(_._2)
         val vars = resolved.flatMap(_._3)
-        (TupleT(tys), List(), vars)
+        (TupleT(tys), cts, vars)
       case ListPattern(items) =>
         val ty = newVarType
         val headTys = items.dropRight(1).map { i => getAssignableConstraints(env)(i) (fbTy) }
@@ -108,6 +108,9 @@ class Typing extends ITyping:
     a match
       case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
       case p: RslPattern => getPatternConstraints(env)(p) (fbTy)
+      case RslTypedVar(rslVar, ty) =>
+        val (innerTy, cons, envs) = getAssignableConstraints(env)(rslVar) (fbTy)
+        (ty, (innerTy, ty) :: cons, envs)
       case RslVar(label) =>
         val ty = newVarType
         (ty, List(), List((label, ty)))
