@@ -126,6 +126,8 @@ case class FuncT(arg: RslType, res: RslType) extends RslType
 case class ParamT(param: String) extends RslType
 case class VarT(count: Int, var inner: Option[RslType]) extends RslType
 
+case class TypeParamT(base: String, param: List[RslType]) extends RslType
+
 // case class AnyT
 // case class NothingT
 
@@ -163,7 +165,23 @@ sealed class RslDecl extends RslBlock
 
 
 case class Ctor(name: String, fields: List[(String, RslType)])
-case class SumDecl(name: String, ctors: List[Ctor]) extends RslDecl
+case class SumDecl(name: String, params: List[String], ctors: List[Ctor]) extends RslDecl
+
+sealed class MethodDecl
+case class VirtualMethodDecl(name: String, methodType: RslType) extends MethodDecl
+case class ActualMethodDecl(name: String, body: RslExp) extends MethodDecl
+
+case class ClassBlock(methods: List[MethodDecl])
+
+case class ClassDecl(name: String, typeParams: List[String], body: ClassBlock) extends RslDecl
+case class InstanceDecl(name: String, typeParams: Map[String, List[String]], body: ClassBlock) extends RslDecl
+
+
+sealed class RslClassTree
+case class AnyClass(classes: List[RslClassTree]) extends RslClassTree
+case class ClassTreeNode(name: String, params: List[String], subClasses: List[RslClassTree]) extends RslClassTree
+
+
 //case class FuncDecl(name: String, ) extends RslDecl
 //case class ConstDecl extends RslDecl
 
@@ -201,6 +219,7 @@ case class Func(param: String, body: RslExp) extends RslExp
 case class Call(fn: RslExp, arg: RslExp) extends RslExp
 case class CallDyn(methodName: RslExp, arg: RslExp) extends RslExp
 case class Letrec(env: List[(RslAssignable, RslExp)], body: RslExp) extends RslExp
+case class Match(exp: RslExp, cases: List[(RslPattern, RslExp)]) extends RslExp
 case class Pair(first: RslExp, second: RslExp) extends RslExp
 case class IsAPair(value: RslExp) extends RslExp
 case class Fst(value: RslExp) extends RslExp

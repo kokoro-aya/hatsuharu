@@ -394,7 +394,7 @@ class Resil extends Rsl {
     case exp: RslExp => (env, evalExp(env)(exp))
 
   override def evalDecl(env: Environment)(d: RslDecl): Environment = d match
-    case SumDecl(name, ctors) =>
+    case SumDecl(name, params, ctors) =>
       env.lookupType(name) match
         case Some(_) => throw EvalError("Redeclaration of type " ++ name)
         case None =>

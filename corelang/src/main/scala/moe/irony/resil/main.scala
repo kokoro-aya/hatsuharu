@@ -3,8 +3,9 @@ package moe.irony.resil
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
 import moe.irony.resil.sig.Binary.{ADD, MULT}
 import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, B, Binary, Binop, BoolT, Call, Components, Ctor, CtorPattern, Data, Environment, Func, I, IntT, IntV, Letrec, ListPattern, Logop, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslDecl, RslExp, RslType, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, ActualMethodDecl, AnyClass, B, Binary, Binop, BoolT, Call, ClassBlock, ClassDecl, ClassTreeNode, Components, Ctor, CtorPattern, Data, Environment, Func, FuncT, I, InstanceDecl, IntT, IntV, Letrec, ListPattern, Logop, Match, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslClassTree, RslDecl, RslExp, RslPattern, RslType, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, TypeParamT, VarT, Variable, VirtualMethodDecl, WildcardPattern}
 
+import scala.collection.immutable.List
 import scala.collection.mutable
 
 
@@ -123,7 +124,7 @@ def eval2() = {
   val blocks1 =
     List[RslBlock](
       SumDecl(
-        "Shape", List(
+        "Shape", List(), List(
           Ctor("Square", List("side" -> IntT)),
           Ctor("Circle", List("radius" -> IntT)),
           Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
@@ -237,7 +238,7 @@ def main(): Unit = {
   val blocks1 =
     List[RslBlock](
       SumDecl(
-        "Shape", List(
+        "Shape", List(), List(
           Ctor("Square", List("side" -> IntT)),
           Ctor("Circle", List("radius" -> IntT)),
           Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
@@ -276,5 +277,97 @@ def main(): Unit = {
 //  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
 //
 //  res2.map { it => Resil().show(it) }.foreach(println)
+
+}
+
+def typeclassExample = {
+  val tree: RslClassTree =
+    AnyClass(List(
+      ClassTreeNode("Functor", List("F"), List(
+        ClassTreeNode("Applicative", List("A"), List(
+          ClassTreeNode("Monad", List("M"), List())
+        ))
+      ))
+    ))
+
+  val block =
+    List[RslBlock](
+      SumDecl(
+        "Option", List("X"), List(
+          Ctor("Some", List("value" -> TypeParamT("X", List()))),
+          Ctor("None", List())
+        )),
+      SumDecl(
+        "LinkedList", List("X"), List(
+          Ctor("Cons", List("next" -> TypeParamT("X", List()))),
+          Ctor("Nil", List())
+        )),
+      ClassDecl(
+        "Functor", List("F"),
+        ClassBlock(List(
+          VirtualMethodDecl("fmap",
+            FuncT(
+              FuncT(TypeParamT("A", List()), TypeParamT("B", List())),
+              FuncT(
+                TypeParamT("F", List(TypeParamT("A", List()))),
+                TypeParamT("F", List(TypeParamT("B", List())))
+              )
+            )),
+          ActualMethodDecl("map",
+            Func("f", Func("x", Call(Variable("f"), Variable("x"))))
+          )
+        ))
+      ),
+      ClassDecl(
+        "Applicative", List("F"),
+        ClassBlock(List(
+          VirtualMethodDecl("pure",
+            FuncT(
+              TypeParamT("A", List()),
+              TypeParamT("F", List(TypeParamT("A", List()))))
+          ),
+          VirtualMethodDecl("apply",
+            FuncT(
+              TypeParamT("F", List(
+                FuncT(TypeParamT("A", List()), TypeParamT("B", List())))),
+              FuncT(
+                TypeParamT("F", List(TypeParamT("A", List()))),
+                TypeParamT("F", List(TypeParamT("B", List())))
+              )
+            ))
+        )
+        )),
+      InstanceDecl("Option", Map("Functor" -> List("F"), "Applicative" -> List("F")),
+        ClassBlock(List(
+          ActualMethodDecl("fmap",
+            Func("f", Func("xs",
+              Match(Variable("xs"), List(
+                (CtorPattern("None", List()), Data("None", List())),
+                (CtorPattern("Some", List(RslVar("x"))), Data("Some", List(
+                  Call(Variable("f"), Variable("x"))
+                )))
+              ))
+            ))
+          ),
+          ActualMethodDecl("pure",
+            Func("x", Data("Some", List(Variable("x"))))
+          ),
+          ActualMethodDecl("apply",
+            Func("fs", Func("xs",
+              Match(Components(List(Variable("fs"), Variable("xs")), 2), List[(RslPattern, RslExp)](
+                (TuplePattern(List(RslVar("f"), RslVar("x"))),
+                  Data("Some", List(Call(Variable("f"), Variable("x"))))),
+                (WildcardPattern, Data("None", List()))
+              ))
+            ))
+          ),
+        ))
+      ),
+      Call(
+        Call(Variable("apply"),
+          Call(Variable("pure"),
+            Func("x", Binop(Binary.ADD, Variable("x"), I(1))))),
+        Data("Some", List(I(3))))
+    )
 
 }
