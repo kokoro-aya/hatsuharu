@@ -1,7 +1,7 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, Match, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, UnionV, UnitV, Update, Variable, WildcardPattern}
+import moe.irony.resil.sig.{AList, AUnit, Array, ArrayV, B, Binary, Binop, BoolV, Call, CallDyn, ClosV, Components, CompoundSubscript, CtorPattern, Data, DataT, Env, Environment, ErrV, EvalError, Fst, Func, Head, I, If, IntV, IsAPair, IsEmpty, Letrec, ListPattern, ListV, Logical, Logop, Match, NamedSubscript, Nth, NthComponent, NumberSubscript, Pair, PairV, PromV, RecordPattern, RecordV, Ref, RefV, Rsl, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslProgram, RslSubscript, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrV, Struct, Subscript, SumDecl, Tail, TuplePattern, TupleV, TypeVarT, UnionV, UnitV, Update, Variable, WildcardPattern}
 
 import scala.util.boundary
 
@@ -310,10 +310,10 @@ class Resil extends Rsl {
     e match
     case Data(label, fields) =>
       env.lookupTypeByCriteria {
-        case DataT(_, _) => true
+        case DataT(_, _, _) => true
         case _ => false
       } match {
-        case Some(DataT(sumName, ctors)) =>
+        case Some(DataT(sumName, _, ctors)) =>
           ctors.get(label) match
             case Some(ctorLabel, ctorFields)  =>
               if ctorFields.size == fields.size then
@@ -479,7 +479,7 @@ class Resil extends Rsl {
       env.lookupType(name) match
         case Some(_) => throw EvalError("Redeclaration of type " ++ name)
         case None =>
-          val newType = DataT(name, ctors.map(c => (c.name, c)).toMap)
+          val newType = DataT(name, params, ctors.map(c => (c.name, c)).toMap)
           env.insert(name, newType)
 
 

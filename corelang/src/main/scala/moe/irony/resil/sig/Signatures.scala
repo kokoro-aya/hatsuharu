@@ -104,9 +104,9 @@ case class ErrV(errMessage: String) extends RslVal
 
 sealed class RslType
 
-case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
+case class DataT(name: String, typeParams: List[RslType], ctors: Map[String, Ctor]) extends RslType
 // A simple variant of DataT arm, used for internal typing match
-case class VariantT(sumName: String, ctor: Ctor) extends RslType
+case class VariantT(sumName: String, typeParams: List[RslType], ctor: Ctor) extends RslType
 case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
 case class RecordT(header: Option[String], types: List[(String, RslType)]) extends RslType
@@ -114,7 +114,7 @@ case class ListT(inner: RslType) extends RslType
 case class ArrayT(inner: RslType) extends RslType
 case class RefT(ty: RslType) extends RslType
 
-case class PatternListT(minSize: Int) extends RslType
+case class TypeVarT(name: String, var inner: Option[RslType] = None) extends RslType
 
 object IntT extends RslType
 object BoolT extends RslType
@@ -127,6 +127,28 @@ case class ParamT(param: String) extends RslType
 case class VarT(count: Int, var inner: Option[RslType]) extends RslType
 
 case class TypeParamT(base: String, param: List[RslType]) extends RslType
+
+def copyRslType(ty: RslType): RslType = ty match
+  case DataT(name, typeParams, ctors) => DataT(name, typeParams, ctors)
+  case VariantT(sumName, typeParams, ctor) => VariantT(sumName, typeParams, ctor)
+  case TagT(name) => TagT(name)
+  case TupleT(types) => TupleT(types)
+  case RecordT(header, types) => RecordT(header, types)
+  case ListT(inner) => ListT(inner)
+  case ArrayT(inner) => ArrayT(inner)
+  case RefT(ty) => RefT(ty)
+  case TypeVarT(name, inner) => TypeVarT(name, inner match
+    case Some(value) => Some(value)
+    case None => None)
+  case IntT => IntT
+  case BoolT => BoolT
+  case StrT => StrT
+  case UnitT => UnitT
+  case PairT(t1, t2) => PairT(t1, t2)
+  case FuncT(arg, res) => FuncT(arg, res)
+  case ParamT(param) => ParamT(param)
+  case VarT(count, inner) => VarT(count, inner)
+  case TypeParamT(base, param) => TypeParamT(base, param)
 
 // case class AnyT
 // case class NothingT
@@ -166,7 +188,7 @@ sealed class RslDecl extends RslBlock
 
 
 case class Ctor(name: String, fields: List[(String, RslType)])
-case class SumDecl(name: String, params: List[String], ctors: List[Ctor]) extends RslDecl
+case class SumDecl(name: String, params: List[RslType], ctors: List[Ctor]) extends RslDecl
 
 sealed class MethodDecl
 case class VirtualMethodDecl(name: String, methodType: RslType) extends MethodDecl
