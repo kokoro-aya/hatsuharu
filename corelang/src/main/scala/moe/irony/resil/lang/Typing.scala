@@ -122,7 +122,7 @@ class Typing extends ITyping:
     exp match
       case Data(label, fields) =>
         env.lookupBy {
-          case DataT(_, _, _) => true
+          case DataT(_, _, ctors) => ctors.keySet.contains(label)
           case _ => false
         } match {
           case Some(DataT(sumName, params, ctors)) =>
@@ -154,9 +154,9 @@ class Typing extends ITyping:
                   (t, allCons)
                 else
                   throw TypeError(s"The type constructor $sumName::$label has ${ctorFieldTypes.size} fields, required: ${fields.size}")
-              case None => throw TypeError(s"Cannot find registered union type with constructor $label")
+              case None => throw TypeError(s"Cannot find registered union type with constructor $label [1]")
           case Some(_) => throw TypeError(s"The type variant $label is not a custom ADT type")
-          case None => throw TypeError(s"Cannot find registered union type with constructor $label")
+          case None => throw TypeError(s"Cannot find registered union type with constructor $label [2]")
 
         }
       case Components(values, _) =>

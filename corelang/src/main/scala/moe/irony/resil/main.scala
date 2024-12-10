@@ -334,17 +334,47 @@ def main(): Unit = {
             Ctor("Nil", List()),
             Ctor("Cons", List("value" -> TypeVarT("A"), "next" -> TypeParamT("ListA", List(TypeVarT("A")))))
           )),
-        Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List()))))))),
-        Data("Nil", List())
-      )
+        SumDecl(
+          "Option", List(TypeVarT("A")), List(
+            Ctor("None", List()),
+            Ctor("Some", List("value" -> TypeVarT("A")))
+          )),
+         Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
+         Func("x", Data("Cons", List(
+           Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+//        Func("x", Match(Variable("x"), List(
+//          (CtorPattern("Nil", List()), Data("Nil", List())),
+//          (CtorPattern("Cons", List(RslVar("y"), RslVar("ys"))), Data("Cons", List(
+//            Data("Cons", List(Binop(Binary.ADD, Variable("f"), Variable("x"))))
+//          )))
+//          ))
+        )
+          
+          // Y-combinator?
+
+        // Option[List[Int]] => fail
+        // Type check failed, reason: Type check error with int and ListA<X8:int>::Cons
+//        Data("Some", List(
+//          Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List())))))))
+//        ))
+//        Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List()))))))),
+//        Data("Nil", List())
 
 
-//    blocks1(1) match
-//      case decl: RslDecl => ()
-//      case exp: RslExp => {
-//        println(Resil().showExp(exp))
-//      }
-//      case _ => ()
+      // Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+      //
+      
+      // 
+      // Func("x", Data("Cons", List(
+      //   Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+
+
+    blocks1(1) match
+      case decl: RslDecl => ()
+      case exp: RslExp => {
+        println(Resil().showExp(exp))
+      }
+      case _ => ()
 
     Typing().typecheck(blocks1)
 

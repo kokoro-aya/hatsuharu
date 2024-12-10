@@ -310,7 +310,7 @@ class Resil extends Rsl {
     e match
     case Data(label, fields) =>
       env.lookupTypeByCriteria {
-        case DataT(_, _, _) => true
+        case DataT(_, _, ctors) => ctors.keySet.contains(label)
         case _ => false
       } match {
         case Some(DataT(sumName, _, ctors)) =>
