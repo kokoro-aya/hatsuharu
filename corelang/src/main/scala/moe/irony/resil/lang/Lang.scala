@@ -123,7 +123,7 @@ class Resil extends Rsl {
     case StrV(value) => s"\"$value\""
     case PairV(first, second) => f"$first, $second"
     case UnitV() => "unit"
-    case ClosV(_, _) => "#closure"
+    case ClosV(_, _) => "<#closure>"
     case PromV(_) => "#promise"
     case ErrV(msg) => "Error: " + msg
 

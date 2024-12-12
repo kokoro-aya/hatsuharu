@@ -61,11 +61,14 @@ class Typing extends ITyping:
         case Some(ity) => typeToString(ity)
         case None => "_"
     }"
-    case VariantT(sumName, params, Ctor(name, _)) => s"$sumName<${params.map(typeToString).mkString(",")}>::$name"
+    case VariantT(sumName, params, Ctor(name, _)) => s"$sumName[${params.map(typeToString).mkString(",")}]::$name"
     case TypeVarT(label, inner) => inner match
       case Some(value) => typeToString(value)
       case None => label
     case _ => throw NotImplementedError("Unknown type " ++ ty.toString)
+
+
+  def pairTypeToString (tys: (RslType, RslType)): String = typeToString(tys._1) ++ " = " ++  typeToString(tys._2)
 
   def optTypeToString (opt: Option[RslType]): String = opt match
     case Some(value) => typeToString(value)
@@ -226,7 +229,7 @@ class Typing extends ITyping:
         val allCons = (t1, FuncT(t2, x1)) :: (cons1 ++ cons2)
         // Solve constraints and stop propagation
         (allCons ++ outerCons).reverse.foreach(unify(_)(_))
-        (x1, List())
+        (x1, allCons)
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
         val t = newVarType
