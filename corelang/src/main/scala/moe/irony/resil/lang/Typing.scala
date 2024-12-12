@@ -150,7 +150,7 @@ class Typing extends ITyping:
                   val ctor = Ctor(label, (fieldNames zip ts))
                   val fieldSubst = ts zip (substCtorByTypParams)
                   val newParams = fullParams.map { _ => newVarType }
-                  val allCons = (t, VariantT(sumName, newParams, ctor)) :: (newParams zip fullParams) ++ fieldSubst ++ cons
+                  val allCons = (t, VariantT(sumName, newParams, ctor)) :: (newParams zip fullParams) ++ (ts zip ctorFieldTypes.map(_._2)) ++ fieldSubst ++ cons
                   (t, allCons)
                 else
                   throw TypeError(s"The type constructor $sumName::$label has ${ctorFieldTypes.size} fields, required: ${fields.size}")

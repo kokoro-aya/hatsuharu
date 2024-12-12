@@ -383,17 +383,17 @@ def main(): Unit = {
     res1.tail.map { it => Resil().show(it) }.foreach(println)
 
 
-//  val expr1 = Letrec(
-//    List(
-//      (TuplePattern(List(
-//        RslVar("a"), RslVar("b"), RslTypedVar(RslVar("c"), BoolT))
+//    val expr1 = Letrec(
+//      List(
+//        (TuplePattern(List(
+//          RslVar("a"), RslVar("b"), RslTypedVar(RslVar("c"), BoolT))
+//        ),
+//          Components(List(I(3), I(4), I(3)), 3))
 //      ),
-//        Components(List(I(3), I(4), I(3)), 3))
-//    ),
-//    Variable("c")
-//  )
+//      Variable("c")
+//    )
 //
-//  Typing().typecheck(expr1)
+//    Typing().typecheck(expr1)
   
   
   /*  
@@ -404,18 +404,19 @@ def main(): Unit = {
 
 //  // TODO: add full workable example
 //
-//  val blocks2 =
-//    List[RslBlock](
-//      SumDecl(
-//        "Shape", List(
-//          Ctor("Square", Map("side" -> IntT)),
-//          Ctor("Circle", Map("radius" -> IntT)),
-//          Ctor("Rectangle", Map("width" -> IntT, "height" -> IntT))
-//        )),
-//      Data("Bubble", List(I(16), I(8))) // Will raise mismatch error, but not typed currently
-//    )
+//    val blocks2 =
+//      List[RslBlock](
+//        SumDecl(
+//          "Shape", List(), List(
+//            Ctor("Square", List(("side", IntT))),
+//            Ctor("Circle", List(("radius", IntT))),
+//            Ctor("Rectangle", List(("width", IntT), ("height", IntT)))
+//          )),
+//        Data("Rectangle", List(S("str"), I(8))) // Will raise mismatch error, but not typed currently
+//      )
 //
-//  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
+//    Typing().typecheck(blocks2)
+//    val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
 //
 //  res2.map { it => Resil().show(it) }.foreach(println)
 
