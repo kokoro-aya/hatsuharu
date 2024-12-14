@@ -285,7 +285,8 @@ class Resil extends Rsl {
     case (CtorPattern(name, fields), UnionV(header, dataFields)) =>
       return name == header && fields.size == dataFields.size
     case (ListPattern(elements), ListV(values)) =>
-      return elements.size <= values.size
+      if elements.isEmpty then values.isEmpty
+      else elements.size <= values.size
     case (RecordPattern(fields), RecordV(header, values)) =>
       val fieldNames = fields.map(_.label).toSet
       val actualNames = values.keySet

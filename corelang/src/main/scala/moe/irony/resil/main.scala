@@ -1,9 +1,9 @@
 package moe.irony.resil
 
 import moe.irony.resil.lang.{Resil, ResilEnv, Typing, newEnvironment}
-import moe.irony.resil.sig.Binary.{ADD, MULT}
-import moe.irony.resil.sig.Logical.LT
-import moe.irony.resil.sig.{AList, AUnit, ActualMethodDecl, AnyClass, B, Binary, Binop, BoolT, Call, ClassBlock, ClassDecl, ClassTreeNode, Components, Ctor, CtorPattern, Data, Environment, Func, FuncT, I, InstanceDecl, IntT, IntV, Letrec, ListPattern, Logop, Match, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslClassTree, RslDecl, RslExp, RslPattern, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, TypeParamT, TypeVarT, VarT, Variable, VirtualMethodDecl, WildcardPattern}
+import moe.irony.resil.sig.Binary.{ADD, MULT, SUB}
+import moe.irony.resil.sig.Logical.{EQ, LT}
+import moe.irony.resil.sig.{AList, AUnit, ActualMethodDecl, AnyClass, B, Binary, Binop, BoolT, Call, ClassBlock, ClassDecl, ClassTreeNode, Components, Ctor, CtorPattern, Data, Environment, Func, FuncT, I, If, InstanceDecl, IntT, IntV, Letrec, ListPattern, Logop, Match, Nth, Pair, ParamT, RecordPattern, RecordV, RslBlock, RslClassTree, RslDecl, RslExp, RslPattern, RslType, RslTypedVar, RslVal, RslVar, S, Size, Snd, StrT, Struct, SumDecl, TagT, TuplePattern, TypeParamT, TypeVarT, VarT, Variable, VirtualMethodDecl, WildcardPattern}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -369,18 +369,51 @@ def main(): Unit = {
       //   Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
 
 
-    blocks1(1) match
-      case decl: RslDecl => ()
-      case exp: RslExp => {
-        println(Resil().showExp(exp))
-      }
-      case _ => ()
+//    blocks1(1) match
+//      case decl: RslDecl => ()
+//      case exp: RslExp => {
+//        println(Resil().showExp(exp))
+//      }
+//      case _ => ()
+//
+//    Typing().typecheck(blocks1)
+//
+//    val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
+//
+//    res1.tail.map { it => Resil().show(it) }.foreach(println)
 
-    Typing().typecheck(blocks1)
+      // let f = fun x -> (x, x) in
+      // let g = f 1 in
+      // let h = f "hello"
 
-    val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
+      val func = Letrec(
+        List(
+          (RslVar("f"), Func("x", Components(List(Variable("x"), Variable("x")), 2)))
+        ),
+        Letrec(
+          List(
+            (RslVar("g"), Call(Variable("f"), I(1)))
+          ),
+          Variable("f")
+        )
+      )
 
-    res1.tail.map { it => Resil().show(it) }.foreach(println)
+      val colFuns = Letrec(
+        List(
+          (RslVar("head"), Func("list", Match(Variable("list"), List(
+            (ListPattern(List()), Variable("list")),
+            (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("x"))
+          )))),
+          (RslVar("tail"), Func("list", Match(Variable("list"), List(
+            (ListPattern(List()), Variable("list")),
+            (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("xs"))
+          ))))
+        ),
+        Call(Variable("head"), AList(List(I(3), I(4), I(5), I(6), I(7))))
+      )
+
+      Typing().typecheck(colFuns)
+      println(Resil().eval(colFuns))
 
 
 //    val expr1 = Letrec(

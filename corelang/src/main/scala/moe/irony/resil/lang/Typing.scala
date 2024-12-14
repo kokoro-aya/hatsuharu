@@ -70,6 +70,9 @@ class Typing extends ITyping:
 
   def pairTypeToString (tys: (RslType, RslType)): String = typeToString(tys._1) ++ " = " ++  typeToString(tys._2)
 
+  def showDebugConstraints(cons: List[(RslType, RslType)]) =
+    "------------------------\n" ++ cons.map(pairTypeToString).mkString("\n") ++ "\n------------------------\n"
+
   def optTypeToString (opt: Option[RslType]): String = opt match
     case Some(value) => typeToString(value)
     case None => "_"
@@ -101,6 +104,7 @@ class Typing extends ITyping:
         (TupleT(tys), cts, vars)
       case ListPattern(items) =>
         val ty = newVarType
+        if items.isEmpty then return (ListT(ty), List(), List())
         val headTys = items.dropRight(1).map { i => getAssignableConstraints(env)(i) (fbTy) }
         val tys = headTys.map(_._1)
         val cts = headTys.flatMap(_._2)
@@ -441,6 +445,11 @@ class Typing extends ITyping:
           throw TypeError("Type " ++ typeToString(right) ++ " contains type " ++ typeToString(left))
         else
           v.inner = Some(right)
+      case Some(tp @ ParamT(_)) =>
+        if containsType(right)(tp) then
+          throw TypeError("Circular type dependency detected: " ++ typeToString(tp))
+        else
+          v.inner = Some(right)
       case Some(ty) =>
         if ty == right then ()
         else unify (ty) (right)
@@ -450,6 +459,11 @@ class Typing extends ITyping:
           throw TypeError("Type " ++ typeToString(left) ++ " contains type " ++ typeToString(right))
         else
           v.inner = Some(left)
+      case Some(tp @ ParamT(_)) =>
+        if containsType(left)(tp) then
+          throw TypeError("Circular type dependency detected: " ++ typeToString(tp))
+        else
+          v.inner = Some(right)
       case Some(ty) =>
         if ty == left then ()
         else unify (ty) (left)
