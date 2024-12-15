@@ -20,3 +20,19 @@ Status: DONE
     - [x] Fix typecheck to infer
     - [x] Testing for collection with complex expressions
     - [x] Generic typing and testing for collections (list, array, record, tuple)
+
+#### Core lang implementation II
+
+Status: DONE
+
+Language augmentation: custom AST datatypes, and pattern matching
+
+- Added supports for custom ADT datatypes
+- Added supports for pattern destructuring including:
+  - Single variable
+  - Simple primitives like list/array, tuples and records
+  - Custom ADT
+  - Typed variable
+  - And nested patterns
+- Fixed several old typing and evaluation bugs including the losing of constraints
+- And introduced several new bugs, also identified several bugs
