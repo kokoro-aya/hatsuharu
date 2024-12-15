@@ -1,10 +1,12 @@
 package moe.irony.resil.lang
 
 import moe.irony.resil.sig
-import moe.irony.resil.sig.{AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Data, DataT, Env, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListT, Logop, Pair, PairT, ParamT, AList, RecordT, Ref, RefT, RslExp, RslType, S, Snd, StrT, Struct, Subscript, TagT, TupleT, UnitT, Update, VarT, Variable}
+import moe.irony.resil.sig.{AList, AUnit, ArrayT, B, Binary, Binop, BoolT, Call, CallDyn, Components, Ctor, CtorPattern, Data, DataT, Env, Environment, Fst, Func, FuncT, I, If, IntT, IntV, IsAPair, Letrec, ListPattern, ListT, Logop, Match, Pair, PairT, ParamT, RecordPattern, RecordT, Ref, RefT, RslAssignable, RslBlock, RslDecl, RslExp, RslPattern, RslSubscript, RslType, RslTypedVar, RslVar, S, Snd, StrT, Struct, Subscript, TagT, TuplePattern, TupleT, TypeParamT, TypeVarT, UnitT, Update, VarT, Variable, VariantT, WildcardPattern, copyRslType}
 import moe.irony.resil.utils.IdentifierGenerator
 
-import Console.{RED, BLUE, RESET}
+import Console.{BLUE, RED, RESET}
+import scala.util.boundary
+import scala.util.boundary.break
 
 trait ITyping:
   def resolve(typ: RslType): RslType
@@ -29,16 +31,21 @@ class Typing extends ITyping:
 
 
   private def emptyEnv: Env[RslType] = ResilEnv[RslType]()
+  
+  // Reserved type names that users should not be able to use
+  def reservedPrimitiveTypes: List[String] = List(
+    "Int", "Bool", "Str", "Array", "Ref", "Unit", "Pair", "Func", "Var", "Variant"
+  )
 
 
   def typeToString (ty: RslType): String = ty match
-    case DataT(name, _) => name
+    case DataT(name, params, _) => name ++ "<" ++ params.mkString(", ") ++ ">"
     case TagT(name) => s"@$name"
     case TupleT(types) => s"(${types.map(typeToString).mkString(", ")})"
     case RecordT(header, types) => (header match
       case Some(value) => s"$value "
       case None => ""
-      ) ++ s"{ ${types.map(typeToString).mkString(", ")} }"
+      ) ++ s"{ ${types.map{(name, ty) => name + ": " + typeToString(ty)}.mkString(", ")} }"
     case ListT(ty) => "list[" ++ typeToString(ty) ++ "]"
     case ArrayT(ty) => "array[" ++ typeToString(ty) ++ "]"
     case RefT(ty) => s"&${typeToString(ty)}"
@@ -54,18 +61,114 @@ class Typing extends ITyping:
         case Some(ity) => typeToString(ity)
         case None => "_"
     }"
+    case VariantT(sumName, params, Ctor(name, _)) => s"$sumName[${params.map(typeToString).mkString(",")}]::$name"
+    case TypeVarT(label, inner) => inner match
+      case Some(value) => typeToString(value)
+      case None => label
     case _ => throw NotImplementedError("Unknown type " ++ ty.toString)
+
+
+  def pairTypeToString (tys: (RslType, RslType)): String = typeToString(tys._1) ++ " = " ++  typeToString(tys._2)
+
+  def showDebugConstraints(cons: List[(RslType, RslType)]) =
+    "------------------------\n" ++ cons.map(pairTypeToString).mkString("\n") ++ "\n------------------------\n"
 
   def optTypeToString (opt: Option[RslType]): String = opt match
     case Some(value) => typeToString(value)
     case None => "_"
+    
+  def getPatternConstraints (env: Env[RslType]) (p: RslPattern) (fbTy: RslType): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
+    p match
+      case RecordPattern(fields) =>
+        val ty = newVarType
+        val recTy = RecordT(None, fields.map { f => (f.label, newVarType) })
+        (ty, List((ty, recTy)), recTy.types)
+      case CtorPattern(name, fields) =>
+        val res: Option[RslType] = env.lookupBy {
+          case DataT(dataName, params, ctors) => ctors.keySet.contains(name)
+          case _ => false
+        }
+        res match
+          case Some(ty @ DataT(dataName, params, ctors)) =>
+            val Ctor(ctorName, ctorFields) = ctors(name)
+            if fields.size == ctorFields.size then
+              (ty, List(), fields.map(_.label) zip ctorFields.map(_._2))
+            else
+              throw TypeError("Constructor field count mismatches with constructor pattern")
+          case _ => throw TypeError(s"No constructor $name found in registered types for pattern matching")
+      case TuplePattern(items) => 
+        val resolved = items.map { a => getAssignableConstraints(env)(a) (fbTy) }
+        val tys = resolved.map(_._1)
+        val cts = resolved.flatMap(_._2)
+        val vars = resolved.flatMap(_._3)
+        (TupleT(tys), cts, vars)
+      case ListPattern(items) =>
+        val ty = newVarType
+        if items.isEmpty then return (ListT(ty), List(), List())
+        val headTys = items.dropRight(1).map { i => getAssignableConstraints(env)(i) (fbTy) }
+        val tys = headTys.map(_._1)
+        val cts = headTys.flatMap(_._2)
+        val endTy = getAssignableConstraints(env)(items.last) (fbTy)
+        val newCts = tys.map { t => (ty, t) } ++ cts ++ ((ListT(ty), endTy._1) :: endTy._2)
+        val vars = headTys.flatMap(_._3) ++ endTy._3
+        (ListT(ty), newCts, vars)
+      case WildcardPattern => (fbTy, List(), List())
+      
+  def getAssignableConstraints (env: Env[RslType]) (a: RslAssignable) (fbTy: RslType): (RslType, List[(RslType, RslType)], List[(String, RslType)]) =
+    a match
+      case _: RslSubscript => throw TypeError("Assignable is currently not supported for let-rec")
+      case p: RslPattern => getPatternConstraints(env)(p) (fbTy)
+      case RslTypedVar(rslVar, ty) =>
+        val (innerTy, cons, envs) = getAssignableConstraints(env)(rslVar) (fbTy)
+        (ty, (innerTy, ty) :: cons, envs)
+      case RslVar(label) =>
+        val ty = newVarType
+        (ty, List(), List((label, ty)))
 
-  def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]): (RslType, List[(RslType, RslType)]) =
+  def getConstraints (env: Env[RslType]) (exp: RslExp) (outerCons: List[(RslType, RslType)]) (tyVars: List[RslType]): (RslType, List[(RslType, RslType)]) =
     exp match
-      case Data(ctorName, fields) => ???
+      case Data(label, fields) =>
+        env.lookupBy {
+          case DataT(_, _, ctors) => ctors.keySet.contains(label)
+          case _ => false
+        } match {
+          case Some(DataT(sumName, params, ctors)) =>
+            ctors.get(label) match
+              case Some(_, ctorFieldTypes)  =>
+                if ctorFieldTypes.size == fields.size then
+                  val t = newVarType
+                  val paramsCopy = params.map(copyRslType)
+                  val newlyAdded = paramsCopy.toSet.diff(tyVars.toSet)
+                  val fullParams = tyVars ++ newlyAdded
+
+                  def findAndSubstituteTypeParam(ty: RslType): Option[RslType] =
+                    fullParams.find { fty => ty == fty }
+
+                  val allConstraints = fields.map(getConstraints(env)(_)(outerCons)(fullParams))
+                  val ts = allConstraints.map(_._1)
+                  val cons = allConstraints.flatMap(_._2)
+                  val substCtorByTypParams = ctorFieldTypes
+                    .map { (_, t) => findAndSubstituteTypeParam(t) }
+                    .filter {
+                      case Some(value) => true
+                      case None => false
+                    }.map { t => t.get }
+                  val fieldNames = ctorFieldTypes.map(_._1)
+                  val ctor = Ctor(label, (fieldNames zip ts))
+                  val fieldSubst = ts zip (substCtorByTypParams)
+                  val newParams = fullParams.map { _ => newVarType }
+                  val allCons = (t, VariantT(sumName, newParams, ctor)) :: (newParams zip fullParams) ++ (ts zip ctorFieldTypes.map(_._2)) ++ fieldSubst ++ cons
+                  (t, allCons)
+                else
+                  throw TypeError(s"The type constructor $sumName::$label has ${ctorFieldTypes.size} fields, required: ${fields.size}")
+              case None => throw TypeError(s"Cannot find registered union type with constructor $label [1]")
+          case Some(_) => throw TypeError(s"The type variant $label is not a custom ADT type")
+          case None => throw TypeError(s"Cannot find registered union type with constructor $label [2]")
+
+        }
       case Components(values, _) =>
         val t = newVarType
-        val allConstraints = values.map(getConstraints(env)(_)(outerCons))
+        val allConstraints = values.map(getConstraints(env)(_)(outerCons)(tyVars))
         val ts = allConstraints.map(_._1)
         val cons = allConstraints.flatMap(_._2)
         val allCons = (t, TupleT(ts)) :: cons
@@ -73,21 +176,21 @@ class Typing extends ITyping:
       case Struct(header, values) =>
         // Do we need to recheck the correspondences of field names and field types?
         val t = newVarType
-        val allFieldConstraints = values.values.map(getConstraints(env)(_)(outerCons)).toList
+        val allFieldConstraints = values.values.map(getConstraints(env)(_)(outerCons)(tyVars)).toList
         val ts = allFieldConstraints.map(_._1)
         val cons = allFieldConstraints.flatMap(_._2)
-        val allCons = (t, RecordT(header, ts)) :: cons
+        val allCons = (t, RecordT(header, values.keys.zip(ts).toList)) :: cons
         (t, allCons)
       case AList(exps) =>
         val t = newVarType
-        val allFieldConstraints = exps.map(getConstraints(env)(_)(outerCons)).toList
+        val allFieldConstraints = exps.map(getConstraints(env)(_)(outerCons)(tyVars)).toList
         val allCons = allFieldConstraints.map(_._1).map((t, _)) ++ allFieldConstraints.flatMap(_._2)
         // Solve constraints and stop propagation
         (allCons ++ outerCons).reverse.foreach(unify(_)(_))
         (ListT(t), List())
       case sig.Array(elements) =>
         val t = newVarType
-        val allFieldConstraints = elements.map(getConstraints(env)(_)(outerCons)).toList
+        val allFieldConstraints = elements.map(getConstraints(env)(_)(outerCons)(tyVars)).toList
         val allCons = allFieldConstraints.map(_._1).map((t, _)) ++ allFieldConstraints.flatMap(_._2)
           // Solve constraints and stop propagation
         (allCons ++ outerCons).reverse.foreach(unify(_)(_))
@@ -103,47 +206,52 @@ class Typing extends ITyping:
         case None => throw TypeError("Unknown variable " ++ label)
       case Binop(op, left, right) =>
         val t = newVarType
-        val (t1, cons1) = getConstraints(env)(left)(outerCons)
-        val (t2, cons2) = getConstraints(env)(right)(outerCons)
+        val (t1, cons1) = getConstraints(env)(left)(outerCons) (tyVars)
+        val (t2, cons2) = getConstraints(env)(right)(outerCons) (tyVars)
         val allCons = (t, IntT) :: (t1, IntT) :: (t2, IntT) :: (cons1 ++ cons2)
         (t, allCons)
       case Logop(op, left, right) =>
-        val (t1, cons1) = getConstraints (env) (left)(outerCons)
-        val (t2, cons2) = getConstraints (env) (right)(outerCons)
+        val (t1, cons1) = getConstraints (env) (left)(outerCons) (tyVars)
+        val (t2, cons2) = getConstraints (env) (right)(outerCons) (tyVars)
         val allCons = (t1, t2) :: (cons1 ++ cons2)
         (BoolT, allCons)
       case If(cond, caseTrue, caseElse) =>
         val t = newVarType
-        val (t1, cons1) = getConstraints (env) (cond) (outerCons)
-        val (t2, cons2) = getConstraints (env) (caseTrue) (outerCons)
-        val (t3, cons3) = getConstraints (env) (caseElse) (outerCons)
+        val (t1, cons1) = getConstraints (env) (cond) (outerCons) (tyVars)
+        val (t2, cons2) = getConstraints (env) (caseTrue) (outerCons) (tyVars)
+        val (t3, cons3) = getConstraints (env) (caseElse) (outerCons) (tyVars)
         val allCons = (t, t2) :: (t, t3) :: (t2, t3) :: (t1, BoolT) :: (cons1 ++ cons2 ++ cons3)
         (t, allCons)
       case Func(arg, body) =>
         val t1 = newVarType
-        val (t2, cons) = getConstraints (env.insert(arg, t1)) (body) (outerCons)
+        val (t2, cons) = getConstraints (env.insert(arg, t1)) (body) (outerCons) (tyVars)
         (FuncT(t1, t2), cons)
       case Call(funExp, actual) =>
         val x1 = newVarType
-        val (t1, cons1) = getConstraints (env) (funExp) (outerCons)
-        val (t2, cons2) = getConstraints (env) (actual) (outerCons)
+        val (t1, cons1) = getConstraints (env) (funExp) (outerCons) (tyVars)
+        val (t2, cons2) = getConstraints (env) (actual) (outerCons) (tyVars)
         val allCons = (t1, FuncT(t2, x1)) :: (cons1 ++ cons2)
         // Solve constraints and stop propagation
         (allCons ++ outerCons).reverse.foreach(unify(_)(_))
-        (x1, List())
+        (x1, allCons)
       case CallDyn(methodName, arg) => throw TypeError("dynamic call is not supported for typing yet")
       case Letrec(assigns, body) =>
         val t = newVarType
         val z = (List[((String, RslType), List[(RslType, RslType)])](), emptyEnv)
 
-        val backfields = assigns.backingField
+        val backfields = assigns
         val (consList, uncheckedEnvs) = backfields.foldLeft(z) { (zr, sv) =>
-          val (s, v) = sv
+          val (sA, v) = sv
           val (acc, envs) = zr
-          val (ty, list) = getConstraints(envs)(v) (outerCons)
+          val (ty, list) = getConstraints(envs ++ env)(v) (outerCons) (tyVars)
+          // Calculate rhs prior to lhs to get fallback type of wildcard
+          val (aT, cts, s) = getAssignableConstraints(env)(sA) (ty)
           val newVar = newVarType
-          val constraints = ((s, ty), (ty, newVar) :: list) :: acc
-          val newEnv: Env[RslType] = envs.insert(s, ty)
+          val constraints = ((s.last._1, ty), (ty, newVar) :: cts ++ ( (aT, ty) :: list)) :: acc
+          val newEnv: Env[RslType] =
+            s.foldLeft(envs.insert(s.last._1, ty)) { (accEnv, st) =>
+              accEnv.insert(st._1, st._2)
+            }
           (constraints, newEnv)
         }
         val newEnv = uncheckedEnvs ++ env
@@ -151,31 +259,50 @@ class Typing extends ITyping:
           val (_, cx) = _cx
            accCons ++ cx
         }
-        val (t1, cons1) = getConstraints (newEnv) (body) (newCons)
+        val (t1, cons1) = getConstraints (newEnv) (body) (newCons) (tyVars)
         val allCons = (t, t1) :: cons1 ++ newCons
         (t, allCons)
+      case Match(exp, arms) =>
+        val (tExp, consRes) = getConstraints (env) (exp) (outerCons) (tyVars)
+        val tRes = newVarType
+        val z = (List[(List[(RslType, RslType)])](), emptyEnv)
+        val (consList, newEnvs) = arms.foldLeft(z) { (zr, ca) =>
+          val (p, aEx) = ca
+          val (aT, cts, s) = getAssignableConstraints(env)(p) (tExp)
+          // tRes as fallback type
+          val (acc, envs) = zr
+          val desEnv = ResilEnv[RslType](s)
+          val (ty, list) = getConstraints(desEnv ++ env)(aEx) (outerCons) (tyVars)
+          val constraints = ((ty, tRes) :: cts ++ (list)) :: acc
+          val newEnv: Env[RslType] =
+            s.foldLeft(envs) { (accEnv, st) =>
+              accEnv.insert(st._1, st._2)
+            }
+          (constraints, newEnv)
+        }
+        (tRes, consList.flatten)
       case Pair(first, second) =>
         val t = newVarType
-        val (t2, cons1) = getConstraints (env) (first) (outerCons)
-        val (t3, cons2) = getConstraints (env) (second) (outerCons)
+        val (t2, cons1) = getConstraints (env) (first) (outerCons) (tyVars)
+        val (t3, cons2) = getConstraints (env) (second) (outerCons) (tyVars)
         val allCons = (t, PairT(t2, t3)) :: cons1 ++ cons2
         (t, allCons)
       case IsAPair(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value) (outerCons)
+        val (t3, cons) = getConstraints (env) (value) (outerCons) (tyVars)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (BoolT, allCons)
       case Fst(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value) (outerCons)
+        val (t3, cons) = getConstraints (env) (value) (outerCons) (tyVars)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (t1, allCons)
       case Snd(value) =>
         val t1 = newVarType
         val t2 = newVarType
-        val (t3, cons) = getConstraints (env) (value) (outerCons)
+        val (t3, cons) = getConstraints (env) (value) (outerCons) (tyVars)
         val allCons = (t3, PairT(t1, t2)) :: cons
         (t2, allCons)
       case AUnit() => (UnitT, List())
@@ -183,7 +310,44 @@ class Typing extends ITyping:
       // TODO: split Resil() to several objects to prevent circular dependency
 
   def unify (left: RslType) (right: RslType): Unit = (left, right) match
-    case (DataT(name1, fields1), DataT(name2, fields2)) => throw NotImplementedError()
+    case (DataT(name1, params1, fields1), DataT(name2, params2, fields2)) =>
+      throw NotImplementedError("It's not supposed to unify match DataT and DataT at the moment")
+    case (DataT(name1, params1, fields), VariantT(name2, params2, ctor)) =>
+      if name1 != name2 then
+        throw TypeError("Mismatch ADT and variant names")
+      else if params1 != params2 then
+        throw TypeError("Mismatch ADT and variant type params")
+      else fields.find { (label, _) =>
+        label == ctor.name
+      } match
+        case Some((_, adtCtor)) =>
+          val labelsInDataCtor = adtCtor.fields.map(_._1)
+          val labelsInVariantCtor = ctor.fields.map(_._1)
+          if ! exactMatching(labelsInVariantCtor, labelsInDataCtor) then
+            throw TypeError(s"Fields of variant ${ctor.name} and its ADT $name1 do not match")
+          else
+            val typesInDataCtor = adtCtor.fields.toList.sortBy(_._1).map(_._2)
+            val typesInVariantCtor = ctor.fields.toList.sortBy(_._1).map(_._2)
+            (typesInDataCtor zip typesInVariantCtor).foreach { (l, r) =>
+              unify (l) (r)
+            }
+            
+          def exactMatching[A](listA: List[A], listB: List[A]): Boolean =
+            listA.size == listB.size 
+            && (listA zip listB).foldLeft(true) { (acc, currPair) => 
+              val (a, b) = currPair
+              a == b 
+            }
+        case None => throw TypeError(s"Cannot find variant ${ctor.name} in ADT $name1")
+    case (TypeParamT(base, params), VariantT(sumName, typeParams, ctor)) =>
+      if base == sumName && params.size == typeParams.size then
+        (params zip typeParams).foreach { (l, r) =>
+          unify (l) (r)
+        }
+    case (VariantT(name1, params1, ctor), DataT(name2, params2, fields)) =>
+      unify(right)(left)
+    case (VariantT(name1, params1, ctor), TypeParamT(base, params)) =>
+      unify(right)(left)
     case (TagT(tag1), TagT(tag2)) => throw NotImplementedError()
     case (TupleT(types1), TupleT(types2)) =>
       if types1.size != types2.size then
@@ -198,17 +362,21 @@ class Typing extends ITyping:
       else if types1.size != types2.size then
         throw TypeError("Mismatch record sizes")
       else
-        types1.zip(types2).foreach { (l, r) =>
-          unify (l) (r)
+        val leftName = header1.getOrElse("_")
+        val rightName = header2.getOrElse("_")
+        // Sort two type lists of recordT by their labels to get same order of representation
+        types1.sortBy(_._1).zip(types2.sortBy(_._1)).foreach { (left, right) =>
+          val (ll, lty) = left
+          val (rl, rty) = right
+          if ll != rl then
+            throw TypeError(f"Mismatch record fields $leftName:$ll with $rightName:$rl")
+          else
+            unify (lty) (rty)
         }
-    case (ListT(ty1), ListT(ty2)) => 
-      if ty1 == ty2 then ()
-      else
-        throw TypeError("List inner types mismatch")
+    case (ListT(ty1), ListT(ty2)) =>
+      unify (ty1) (ty2)
     case (ArrayT(ty1), ArrayT(ty2)) =>
-      if ty1 == ty2 then ()
-      else
-        throw TypeError("Array inner types mismatch")
+      unify (ty1) (ty2)
     case (RefT(ty1), RefT(ty2)) => throw NotImplementedError()
     case (IntT, IntT) => ()
     case (BoolT, BoolT) => ()
@@ -242,7 +410,7 @@ class Typing extends ITyping:
                 else
                   r.inner = t2
               // Right side concrete types
-              case (ParamT(_), DataT(name, ctors)) => throw NotImplementedError()
+              case (ParamT(_), DataT(name, params, ctors)) => throw NotImplementedError()
               case (ParamT(_), TagT(name)) => throw NotImplementedError()
               case (ParamT(_), TupleT(types)) => r.inner = t2
               case (ParamT(_), RecordT(header, types)) => r.inner = t2
@@ -256,7 +424,7 @@ class Typing extends ITyping:
               case (ParamT(_), PairT(_, _)) => r.inner = t2
               case (ParamT(_), FuncT(_, _)) => r.inner = t2
               // Left side concrete types
-              case (DataT(name, ctors), ParamT(_)) => throw NotImplementedError()
+              case (DataT(name, params, ctors), ParamT(_)) => throw NotImplementedError()
               case (TagT(name), ParamT(_)) => throw NotImplementedError()
               case (TupleT(types), ParamT(_)) => s.inner = t1
               case (RecordT(header, types), ParamT(_)) => s.inner = t1
@@ -277,6 +445,11 @@ class Typing extends ITyping:
           throw TypeError("Type " ++ typeToString(right) ++ " contains type " ++ typeToString(left))
         else
           v.inner = Some(right)
+      case Some(tp @ ParamT(_)) =>
+        if containsType(right)(tp) then
+          throw TypeError("Circular type dependency detected: " ++ typeToString(tp))
+        else
+          v.inner = Some(right)
       case Some(ty) =>
         if ty == right then ()
         else unify (ty) (right)
@@ -286,6 +459,11 @@ class Typing extends ITyping:
           throw TypeError("Type " ++ typeToString(left) ++ " contains type " ++ typeToString(right))
         else
           v.inner = Some(left)
+      case Some(tp @ ParamT(_)) =>
+        if containsType(left)(tp) then
+          throw TypeError("Circular type dependency detected: " ++ typeToString(tp))
+        else
+          v.inner = Some(right)
       case Some(ty) =>
         if ty == left then ()
         else unify (ty) (left)
@@ -293,16 +471,35 @@ class Typing extends ITyping:
       if s1 == s2
       then ()
       else throw TypeError("Param clash with " ++ s1 ++ " and " ++ s2)
+    case (t @ TypeVarT(name, inner), rty) => inner match
+      case None =>
+        if containsType (right) (left) then
+          ()
+        else
+          t.inner = Some(right)
+      case Some(ty) =>
+        if ty == right then ()
+        else unify (ty) (right)
+    case (_, TypeVarT(name, inner)) =>
+      unify (right) (left)
+    case (TypeParamT(name, params), _) =>
+      () // TODO
+    case (_, TypeParamT(name, params)) =>
+      unify (right) (left)
     case _ =>
       throw TypeError("Type check error with " ++ RED ++ typeToString(left) ++ RESET ++ " and " ++ RED ++ typeToString(right) ++ RESET)
 
   def containsType (outer: RslType) (inner: RslType): Boolean = outer match
-    case DataT(name, ctors) => throw NotImplementedError()
+    case DataT(name, params, ctors) => throw NotImplementedError()
+    case VariantT(name, params, ctors) =>
+      ctors.fields.map { (_, ty) =>
+        containsType(ty)(inner)
+      }.foldLeft(false)(_ || _)
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>
       types.map(containsType(_)(inner)).reduce(_ || _)
     case RecordT(_, types) =>
-      types.map(containsType(_)(inner)).reduce(_ || _)
+      types.map(_._2).map(containsType(_)(inner)).reduce(_ || _)
     case ListT(ty) => containsType(ty)(inner)
     case ArrayT(ty) => containsType(ty)(inner)
     case RefT(ty) => throw NotImplementedError()
@@ -324,15 +521,31 @@ class Typing extends ITyping:
     case ParamT(par) => inner match
       case ParamT(p2) => par == p2
       case _ => false
-    case _ => throw NotImplementedError("Typing.containsType called on unknown outer type: " ++ typeToString(outer))
+
+    case outer @ TypeVarT(name, outX) => inner match
+      case innerVar @ VarT(_, rf) =>
+        (outX, rf) match
+          case (None, None) => false // Unbound VarT, not related to TypeVar
+          case (_, None) => false
+          case (None, _) => false
+          case (Some(ox), Some(boundType)) => containsType(boundType)(ox)
+      case innerType: TypeVarT => outer == innerType
+      case _ => false
+    case _ => throw TypeError("Typing.containsType called on unknown outer type: " ++ typeToString(outer))
 
   override def resolve(typ: RslType): RslType = typ match
-    case DataT(name, ctors) => throw NotImplementedError()
+    case DataT(name, params, ctors) => throw NotImplementedError()
+    case VariantT(sumName, params, Ctor(name, fields)) =>
+      val resolvedParams = params.map(resolve)
+      val resolvedFields = fields.map { (label, ty) =>
+        (label, resolve(ty))
+      }
+      VariantT(sumName, resolvedParams, Ctor(name, resolvedFields))
     case TagT(name) => throw NotImplementedError()
     case TupleT(types) =>
       TupleT(types.map(resolve))
     case RecordT(header, types) =>
-      RecordT(header, types.map(resolve))
+      RecordT(header, types.map { (ll, ty) => (ll, resolve(ty)) })
     case ListT(ty) => ListT(resolve(ty))
     case ArrayT(ty) => ArrayT(resolve(ty))
     case RefT(ty) => throw NotImplementedError()
@@ -343,7 +556,14 @@ class Typing extends ITyping:
     case PairT(t1, t2) => PairT(resolve (t1), resolve (t2))
     case FuncT(arg, res) => FuncT(resolve (arg), resolve (res))
     case v @ VarT(_, rf) => rf match
-      case Some(t) => resolve (t)
+      case Some(t) =>
+        resolve (t)
+      case None =>
+        val newPara = newParamType
+        v.inner = Some(newPara)
+        newPara
+    case v @ TypeVarT(name, inner) => inner match
+      case Some(t) => resolve(t)
       case None =>
         val newPara = newParamType
         v.inner = Some(newPara)
@@ -352,9 +572,14 @@ class Typing extends ITyping:
     case _ => throw NotImplementedError("Typing.resolve called on unknown type: " ++ typeToString(typ))
 
   override def typecheck(exp: RslExp): Either[String, RslType] =
+    typecheck(emptyEnv)(exp)
+
+  def typecheck(env: Env[RslType]) (exp: RslExp): Either[String, RslType] =
     try
-      val (t, cons) = getConstraints(emptyEnv) (exp) (List())
-      cons.reverse.foreach { (l, r) => unify(l)(r) }
+      val (t, cons) = getConstraints(env) (exp) (List()) (List())
+      cons.reverse.foreach { (l, r) =>
+        unify(l)(r)
+      }
       val typ = resolve(t)
       resetParamType()
       resetVarType()
@@ -367,5 +592,28 @@ class Typing extends ITyping:
       case e: Throwable =>
         println(e.getMessage)
         Left(e.getMessage)
+
+
+  def typecheck(env: Environment)(b: RslBlock): (Environment, Either[String, RslType]) = b match
+    case decl: RslDecl =>
+      val newEnv = Resil().evalDecl(env)(decl)
+      (newEnv, Right(UnitT))
+    case exp: RslExp => (env, typecheck(env.types)(exp))
+
+  def typecheck (bs: List[RslBlock]): Either[String, List[RslType]] =
+    import moe.irony.resil.sig.RslVal
+    boundary:
+      val initAcc = Environment(emptyEnv, ResilEnv[RslVal]())
+      val folded =
+        bs.foldLeft((initAcc, List[RslType]())) { (acc, b) =>
+          val (lastEnv, lastList) = acc
+          val currEnv = Environment(lastEnv.types, ResilEnv[RslVal]())
+          val (newEnv, currRes) = typecheck(currEnv)(b)
+          currRes match
+            case Left(value) => boundary.break(Left(value))
+            case Right(newTy) => (newEnv, lastList :+ newTy)
+        }
+      Right(folded._2)
+
 
 class TypeError(val message: String) extends Exception(message)

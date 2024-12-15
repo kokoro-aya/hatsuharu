@@ -48,6 +48,10 @@ class TestIntegrations extends munit.FunSuite:
     assertEquals(rem, List())
   }
 
+  // TODO: test failed
+  /*
+     ==> X moe.irony.resil.TestIntegrations.d  0.003s java.lang.IllegalStateException: Not an expected token in top-level expr parsing
+   */
   test("d") {
     val src =
       "snd (7, 2)"

@@ -14,11 +14,11 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("simple binary(add) expr") {
     val expr = Letrec(
-      ResilEnv[RslExp](List(
-        ("x", I(1)),
-        ("y", I(2)),
-        ("z", Binop(Binary.ADD, Variable("x"), Variable("y")))
-      )),
+      List(
+        (RslVar("x"), I(1)),
+        (RslVar("y"), I(2)),
+        (RslVar("z"), Binop(Binary.ADD, Variable("x"), Variable("y")))
+      ),
       Variable("z"))
     val res = Resil().eval(expr)
     assertEquals(res, IntV(3))
@@ -44,11 +44,11 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("currying") {
     val expr = Letrec(
-      ResilEnv[RslExp](List(
-        ("f", Func("x", Binop(Binary.ADD, Variable("x"), I(1)))),
-        ("g", Func("x", Binop(Binary.MULT, Variable("x"), I(2)))),
-        ("z", I(3))
-      )),
+      List(
+        (RslVar("f"), Func("x", Binop(Binary.ADD, Variable("x"), I(1)))),
+        (RslVar("g"), Func("x", Binop(Binary.MULT, Variable("x"), I(2)))),
+        (RslVar("z"), I(3))
+      ),
       Call(Variable("f"), Call(Variable("g"), Variable("z"))))
     val res = Resil().eval(expr)
     assertEquals(res, IntV(7))
@@ -56,10 +56,10 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("func as arg") {
     val expr = Letrec (
-      ResilEnv[RslExp](List(
-        ("double", Func("f", Func("#x", Call(Variable("f"), Call(Variable("f"), Variable("#x")))))),
-        ("x", I(4))
-      )),
+      List(
+        (RslVar("double"), Func("f", Func("#x", Call(Variable("f"), Call(Variable("f"), Variable("#x")))))),
+        (RslVar("x"), I(4))
+      ),
       Call(Call(Variable("double"), Func("x", Binop(Binary.ADD, I(2), Variable("x")))), Variable("x")))
     val res = Resil().eval(expr)
     assertEquals(res, IntV(6))
@@ -67,10 +67,10 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("simple func and letrec env var") {
     val expr = Letrec(
-      ResilEnv[RslExp](List(
-        ("y", I(3)),
-        ("f", Func("x", Binop(Binary.ADD, Variable("y"), Variable("x"))))
-      )),
+      List(
+        (RslVar("y"), I(3)),
+        (RslVar("f"), Func("x", Binop(Binary.ADD, Variable("y"), Variable("x"))))
+      ),
       Call(Variable("f"), I(4)))
     val res = Resil().eval(expr)
     assertEquals(res, IntV(7))
@@ -79,45 +79,44 @@ class EvaluatorTest extends munit.FunSuite:
   test("forward references") {
     val expr =
       Letrec(
-        ResilEnv(
           List(
-            ("g", Func("x", Call(Variable("f"), Variable("x")))),
-            ("f", Func("x", I(2))),
-            ("h", Func("x", Call(Variable("g"), Variable("x"))))
-          )),
+            (RslVar("g"), Func("x", Call(Variable("f"), Variable("x")))),
+            (RslVar("f"), Func("x", I(2))),
+            (RslVar("h"), Func("x", Call(Variable("g"), Variable("x"))))
+          ),
         Call(Variable("h"), AUnit())
       )
     val res = Resil().eval(expr)
     assertEquals(res, IntV(2))
   }
 
+  // Java: [java.lang.StackOverflowError] null
+  // JS: RangeError: Maximum call stack size exceeded
   test("stackoverflow in case of self-calls") {
     val expr =
       Letrec(
-        ResilEnv(
           List(
-            ("f", Func("x", Call(Variable("f"), Variable("x"))))
+            (RslVar("f"), Func("x", Call(Variable("f"), Variable("x"))))
           )
-        ),
+        ,
         Call(Variable("f"), AUnit())
       )
 
     val res = Resil().eval(expr)
-    assertEquals(res, ErrV("RangeError: Maximum call stack size exceeded"))
+    assertEquals(res, ErrV("[java.lang.StackOverflowError] null"))
   }
 
   test("self reduct to 10") {
     val expr =
       Letrec(
-        ResilEnv(
           List(
-            ("f", Func("x",
+            (RslVar("f"), Func("x",
               If(Logop(Logical.LT, Variable("x"), I(10)),
                 Call(Variable("f"), Binop(Binary.ADD, Variable("x"), I(1))),
                 Variable("x")
               )))
           )
-        ),
+        ,
         Call(Variable("f"), I(1)))
 
     val res = Resil().eval(expr)
@@ -127,25 +126,23 @@ class EvaluatorTest extends munit.FunSuite:
   test("simple oop") {
     val expr =
       Letrec(
-        ResilEnv(
           List(
-            ("Rectangle",
+            (RslVar("Rectangle"),
               Func("width",
                 Func("height",
                   Func("fn",
                     Func("args",
                       Letrec(
-                        ResilEnv(
                           List(
-                            ("area", Func("_", Binop(Binary.MULT, Variable("width"), Variable("height")))),
-                            ("perimeter", Func("_", Binop(Binary.MULT, I(2), Binop(Binary.ADD, Variable("width"), Variable("height"))))),
-                            ("timesArea", Func("x", Binop(Binary.MULT, Variable("x"), CallDyn(S("area"), AUnit())))))),
+                            (RslVar("area"), Func("_", Binop(Binary.MULT, Variable("width"), Variable("height")))),
+                            (RslVar("perimeter"), Func("_", Binop(Binary.MULT, I(2), Binop(Binary.ADD, Variable("width"), Variable("height"))))),
+                            (RslVar("timesArea"), Func("x", Binop(Binary.MULT, Variable("x"), CallDyn(S("area"), AUnit()))))),
                         CallDyn(Variable("fn"), Variable("args"))
                       ))
                   )))),
-            ("rect1", Call(Call(Variable("Rectangle"), I(3)), I(4))),  // var rect1 = new Rectangle(3, 4)
-            ("rect2", Call(Call(Variable("Rectangle"), I(4)), I(9)))   // var rect2 = new Rectangle(4, 9)
-          )),
+            (RslVar("rect1"), Call(Call(Variable("Rectangle"), I(3)), I(4))),  // var rect1 = new Rectangle(3, 4)
+            (RslVar("rect2"), Call(Call(Variable("Rectangle"), I(4)), I(9)))   // var rect2 = new Rectangle(4, 9)
+          ),
         Pair(
           Pair(
             Call(Call(Variable("rect1"), S("area")), AUnit()),         // rect1.area == 12
@@ -160,33 +157,30 @@ class EvaluatorTest extends munit.FunSuite:
   test("more oop") {
     val expr =
       Letrec(
-        ResilEnv(
           List(
-            ("Animal",
+            (RslVar("Animal"),
               Func("name",
                 Func("getter",
                   Letrec(
-                    ResilEnv(
-                      List(("getName", Func("_", Variable("name"))))),
+                      List((RslVar("getName"), Func("_", Variable("name")))),
                     CallDyn(Variable("getter"), AUnit()))))),
-            ("Cat",
+            (RslVar("Cat"),
               Func("name",
                 Func("color",
                   Func("getter",
                     Letrec(
-                      ResilEnv(
                         List(
-                          ("getName", Func("_", Variable("name"))),
-                          ("getColor", Func("_", Variable("color"))),
-                        )),
+                          (RslVar("getName"), Func("_", Variable("name"))),
+                          (RslVar("getColor"), Func("_", Variable("color"))),
+                        ),
                       CallDyn(Variable("getter"), AUnit())))))),
-            ("Animal@name", Func("animal", Call(Variable("animal"), S("getName")))),
-            ("Animal@description",
+            (RslVar("Animal@name"), Func("animal", Call(Variable("animal"), S("getName")))),
+            (RslVar("Animal@description"),
               Func("animal",
                 Pair(S("my name is"), Call(Variable("Animal@name"), Variable("animal"))))),
-            ("Cat@description", Func("cat", Pair(S("meow "), Call(Variable("cat"), S("getColor"))))),
-            ("someAnimal", Call(Variable("Animal"), S("Alex"))),
-            ("someCat", Call(Call(Variable("Cat"), S("Bob")), S("blue"))))),
+            (RslVar("Cat@description"), Func("cat", Pair(S("meow "), Call(Variable("cat"), S("getColor"))))),
+            (RslVar("someAnimal"), Call(Variable("Animal"), S("Alex"))),
+            (RslVar("someCat"), Call(Call(Variable("Cat"), S("Bob")), S("blue")))),
         Pair(
           Pair(
             Call(Variable("Animal@description"), Variable("someCat")),

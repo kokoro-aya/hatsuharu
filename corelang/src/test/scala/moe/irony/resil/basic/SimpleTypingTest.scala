@@ -5,8 +5,8 @@ import moe.irony.resil.sig.*
 import moe.irony.resil.sig.Binary.*
 import moe.irony.resil.sig.Logical.*
 
-def mkEnv(bindings: (String, RslExp)*): ResilEnv[RslExp] = {
-  ResilEnv[RslExp](bindings.toList)
+def mkEnv(bindings: (String, RslExp)*): List[(RslVar, RslExp)] = {
+  bindings.map{ (l, e) => (RslVar(l), e) }.toList
 }
 
 
@@ -230,6 +230,18 @@ class SimpleTypingTest extends munit.FunSuite:
     val f0 = Func("f", Func("#x", Call(Variable("f"), Call(Variable("f"), Variable("#x")))))
 
     assertEquals(Typing().typecheck(f0), Right(FuncT(FuncT(ParamT("A"), ParamT("A")), FuncT(ParamT("A"), ParamT("A")))))
+  }
+
+  // TODO: recursivity
+  test("f0.1") {
+    val exp = Letrec(
+      mkEnv(
+        ("f", Func("x", Call(Variable("f"), Variable("x"))))
+      ),
+      Variable("f")
+    )
+
+    assertEquals(Typing().typecheck(exp), Left("Unknown variable f"))
   }
 
   test("f1") {

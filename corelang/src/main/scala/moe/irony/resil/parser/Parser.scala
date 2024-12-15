@@ -88,7 +88,10 @@ class Parser:
     if letCont.head != EndToken then
       throw IllegalStateException("Expected `end` in let-rec expression")
     else
-      (Letrec(assigns, expr), letCont.drop(1))
+      val patternedAssigns = assigns.backingField.map { (l, e) =>
+        (RslVar(l), e)
+      }
+      (Letrec(patternedAssigns, expr), letCont.drop(1))
   
   def parseAssigns(tokens: List[Token]): (Env[RslExp], List[Token]) =
     if tokens.isEmpty || tokens.head != ValToken then

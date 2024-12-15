@@ -40,15 +40,15 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("build tuple with letrec") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("a", I(3)),
-          ("b", I(4))
-        )),
+          (RslVar("a"), I(3)),
+          (RslVar("b"), I(4))
+        ),
       Letrec(
-        ResilEnv[RslExp](List(
-          ("c", Components(List(S("foo"), S("bar")), 2))
-        )),
+        List(
+          (RslVar("c"), Components(List(S("foo"), S("bar")), 2))
+        ),
         Components(List(Variable("a"), Variable("b"), Variable("c")), 3)
       ))
     val res = Resil().eval(expr)
@@ -57,11 +57,11 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("update array value") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("a", Array(mutable.ArraySeq(I(3), I(4), I(5)))),
-          ("_", Update(Subscript(S("a"), I(2)), I(6)))
-        )),
+          (RslVar("a"), Array(mutable.ArraySeq(I(3), I(4), I(5)))),
+          (RslVar("_"), Update(Subscript(Variable("a"), I(2)), I(6)))
+        ),
       Variable("a"))
     val res = Resil().eval(expr)
     assertEquals(res, ArrayV(mutable.ArraySeq(IntV(3), IntV(4), IntV(6)), 3))
@@ -69,11 +69,11 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("update ref value") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("a", Ref(I(6))),
-          ("_", Update(S("a"), I(3)))
-        )),
+          (RslVar("a"), Ref(I(6))),
+          (RslVar("_"), Update(S("a"), I(3)))
+        ),
       Variable("a"))
     val res = Resil().eval(expr)
     assertEquals(res, RefV(IntV(3)))
@@ -81,10 +81,10 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("head and tail of list") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("list", AList(List(I(3), I(6), I(11), I(17))))
-        )),
+          (RslVar("list"), AList(List(I(3), I(6), I(11), I(17))))
+        ),
       Pair(Head(Variable("list")), Tail(Variable("list"))))
     val res = Resil().eval(expr)
     assertEquals(res, PairV(IntV(3), IntV(17)))
@@ -92,10 +92,10 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("size of list and its middle") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("list", AList(List(S("abc"), S("ccc"), S("def"), S("fff"), S("lmn"))))
-        )),
+          (RslVar("list"), AList(List(S("abc"), S("ccc"), S("def"), S("fff"), S("lmn"))))
+        ),
       Pair(Size(Variable("list")), Nth(Variable("list"), I(2))))
     val res = Resil().eval(expr)
     assertEquals(res, PairV(IntV(5), StrV("def")))
@@ -103,10 +103,10 @@ class EvaluatorTest extends munit.FunSuite:
 
   test("nth part of tuple") {
     val expr = Letrec(
-      ResilEnv[RslExp](
+      
         List(
-          ("list", Components(List(S("Hello"), I(12), B(false), S("world")), 4))
-        )),
+          (RslVar("list"), Components(List(S("Hello"), I(12), B(false), S("world")), 4))
+        ),
       Pair(NthComponent(Variable("list"), I(2)), NthComponent(Variable("list"), I(1))))
     val res = Resil().eval(expr)
     assertEquals(res, PairV(BoolV(false), IntV(12)))

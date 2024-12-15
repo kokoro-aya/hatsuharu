@@ -10,6 +10,7 @@ trait Env[A]:
   def lookup(label: String): Option[A]
 
   def lookupBy(label: String) (criteria: (A) => Boolean): Option[A]
+  def lookupBy(criteria: (A) => Boolean): Option[A]
 
   infix def ++(other: Env[A]): Env[A]
 
@@ -37,10 +38,10 @@ case class Environment(var types: Env[RslType], var variables: Env[RslVal]):
   def lookupType(label: String): Option[RslType] = types.lookup(label)
   def lookupValue(label: String): Option[RslVal] = variables.lookup(label)
 
-  def lookupTypeByCriteria(label: String) (criteria: (RslType) => Boolean): Option[RslType] =
-    types.lookupBy(label) (criteria)
-  def lookupValueByCriteria(label: String) (criteria: (RslVal) => Boolean): Option[RslVal] =
-    variables.lookupBy(label) (criteria)
+  def lookupTypeByCriteria (criteria: (RslType) => Boolean): Option[RslType] =
+    types.lookupBy(criteria)
+  def lookupValueByCriteria (criteria: (RslVal) => Boolean): Option[RslVal] =
+    variables.lookupBy(criteria)
 
   def +++(other: Env[RslType]): Environment = {
     this.types = this.types ++ other
@@ -56,7 +57,6 @@ case class Environment(var types: Env[RslType], var variables: Env[RslVal]):
   def dumpValues: String = variables.dumpNames
 
 
-case class Ctor(name: String, fields: Map[String, RslType])
 
 
 trait Op
@@ -104,13 +104,17 @@ case class ErrV(errMessage: String) extends RslVal
 
 sealed class RslType
 
-case class DataT(name: String, ctors: Map[String, Ctor]) extends RslType
+case class DataT(name: String, typeParams: List[RslType], ctors: Map[String, Ctor]) extends RslType
+// A simple variant of DataT arm, used for internal typing match
+case class VariantT(sumName: String, typeParams: List[RslType], ctor: Ctor) extends RslType
 case class TagT(name: String) extends RslType // e.g. "Shape" for `data Shape = Square Int | Circle Int ...`
 case class TupleT(types: List[RslType]) extends RslType
-case class RecordT(header: Option[String], types: List[RslType]) extends RslType
+case class RecordT(header: Option[String], types: List[(String, RslType)]) extends RslType
 case class ListT(inner: RslType) extends RslType
 case class ArrayT(inner: RslType) extends RslType
 case class RefT(ty: RslType) extends RslType
+
+case class TypeVarT(name: String, var inner: Option[RslType] = None) extends RslType
 
 object IntT extends RslType
 object BoolT extends RslType
@@ -122,15 +126,57 @@ case class FuncT(arg: RslType, res: RslType) extends RslType
 case class ParamT(param: String) extends RslType
 case class VarT(count: Int, var inner: Option[RslType]) extends RslType
 
+case class TypeParamT(base: String, param: List[RslType]) extends RslType
+
+def copyRslType(ty: RslType): RslType = ty match
+  case DataT(name, typeParams, ctors) => DataT(name, typeParams, ctors)
+  case VariantT(sumName, typeParams, ctor) => VariantT(sumName, typeParams, ctor)
+  case TagT(name) => TagT(name)
+  case TupleT(types) => TupleT(types)
+  case RecordT(header, types) => RecordT(header, types)
+  case ListT(inner) => ListT(inner)
+  case ArrayT(inner) => ArrayT(inner)
+  case RefT(ty) => RefT(ty)
+  case TypeVarT(name, inner) => TypeVarT(name, inner match
+    case Some(value) => Some(value)
+    case None => None)
+  case IntT => IntT
+  case BoolT => BoolT
+  case StrT => StrT
+  case UnitT => UnitT
+  case PairT(t1, t2) => PairT(t1, t2)
+  case FuncT(arg, res) => FuncT(arg, res)
+  case ParamT(param) => ParamT(param)
+  case VarT(count, inner) => VarT(count, inner)
+  case TypeParamT(base, param) => TypeParamT(base, param)
+
 // case class AnyT
 // case class NothingT
 
-sealed class RslPattern
+sealed trait RslAssignable
 
-case class NamedPattern(label: String) extends RslPattern
-case class NumberPattern(value: Int) extends RslPattern
-case class SubscriptPattern(pattern: RslPattern, subscript: RslPattern) extends RslPattern
 
+sealed class RslSubscript extends RslAssignable
+
+// foo.abc  foo[1]  foo[1].abc  foo.abc[1] = ???
+// In the future => replace subscript by full expression
+// what about desugar to "set(assign, value)"?
+
+case class NamedSubscript(label: String) extends RslSubscript
+case class NumberSubscript(value: Int) extends RslSubscript
+case class CompoundSubscript(pattern: RslVar, subscript: RslSubscript) extends RslSubscript
+// TODO: Add dot operator ... precedence ?
+
+sealed class RslPattern extends RslAssignable
+
+case class TuplePattern(items: List[RslAssignable]) extends RslPattern   // (a, b)
+case class ListPattern(elements: List[RslAssignable]) extends RslPattern // hd :: tl
+case class RecordPattern(fields: List[RslVar]) extends RslPattern // { foo, bar }
+case class CtorPattern(name: String, fields: List[RslVar]) extends RslPattern // Cat(a, b)
+case object WildcardPattern extends RslPattern                        // _
+
+case class RslTypedVar(rslVar: RslAssignable, typ: RslType) extends RslAssignable
+case class RslVar(label: String) extends RslAssignable                // foo =    // not to confuse with NamedSubscript
 
 case class RslProgram(blocks: List[RslBlock])
 
@@ -140,11 +186,31 @@ sealed class RslBlock
 
 sealed class RslDecl extends RslBlock
 
-case class DataDecl(name: String, ctors: List[Ctor]) extends RslDecl
+
+case class Ctor(name: String, fields: List[(String, RslType)])
+case class SumDecl(name: String, params: List[RslType], ctors: List[Ctor]) extends RslDecl
+
+sealed class MethodDecl
+case class VirtualMethodDecl(name: String, methodType: RslType) extends MethodDecl
+case class ActualMethodDecl(name: String, body: RslExp) extends MethodDecl
+
+case class ClassBlock(methods: List[MethodDecl])
+
+case class ClassDecl(name: String, typeParams: List[String], body: ClassBlock) extends RslDecl
+case class InstanceDecl(name: String, typeParams: Map[String, List[String]], body: ClassBlock) extends RslDecl
+
+
+sealed class RslClassTree
+case class AnyClass(classes: List[RslClassTree]) extends RslClassTree
+case class ClassTreeNode(name: String, params: List[String], subClasses: List[RslClassTree]) extends RslClassTree
+
+
 //case class FuncDecl(name: String, ) extends RslDecl
 //case class ConstDecl extends RslDecl
 
 sealed class RslExp extends RslBlock
+
+case class RslScope(blocks: List[RslBlock]) // TODO: [2]
 
 // TODO: add Lazy construct
 
@@ -175,7 +241,8 @@ case class If(cond: RslExp, caseTrue: RslExp, caseElse: RslExp) extends RslExp
 case class Func(param: String, body: RslExp) extends RslExp
 case class Call(fn: RslExp, arg: RslExp) extends RslExp
 case class CallDyn(methodName: RslExp, arg: RslExp) extends RslExp
-case class Letrec(env: Env[RslExp], body: RslExp) extends RslExp
+case class Letrec(env: List[(RslAssignable, RslExp)], body: RslExp) extends RslExp
+case class Match(exp: RslExp, cases: List[(RslPattern, RslExp)]) extends RslExp
 case class Pair(first: RslExp, second: RslExp) extends RslExp
 case class IsAPair(value: RslExp) extends RslExp
 case class Fst(value: RslExp) extends RslExp
@@ -195,21 +262,17 @@ class EvalError(val message: String) extends Exception(message)
 
 trait Rsl:
 
-
-
   // TODO: refactor to extension methods
   def show (v: RslVal): String
 
   def typ (v: RslVal): String
 
-  def evalEnv (env: Env[RslVal]) (e: RslExp): RslVal
-
-  def evalEnv (env: Environment) (b: RslBlock): RslVal
-
+  def evalExp (env: Environment) (e: RslExp): RslVal
   def evalDecl (env: Environment) (d: RslDecl): Environment
 
+  def evalBlock (env: Environment) (b: RslBlock): (Environment, RslVal)
+
   def evalBlocks (env: Environment) (bs: List[RslBlock]): (Environment, List[RslVal])
-    = (env, bs.foldLeft(List[RslVal]()) { (res, b) => res :+ evalEnv(env)(b) })
 
   def eval (e: RslExp): RslVal
 
