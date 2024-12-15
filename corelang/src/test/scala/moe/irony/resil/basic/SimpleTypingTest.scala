@@ -199,7 +199,7 @@ class SimpleTypingTest extends munit.FunSuite:
 
     assertEquals(Typing().typecheck(e1), Right(IntT))
   }
-  
+
   test("f") {
     val f = Letrec(
       mkEnv(
@@ -231,7 +231,8 @@ class SimpleTypingTest extends munit.FunSuite:
 
     assertEquals(Typing().typecheck(f0), Right(FuncT(FuncT(ParamT("A"), ParamT("A")), FuncT(ParamT("A"), ParamT("A")))))
   }
-  
+
+  // TODO: recursivity
   test("f0.1") {
     val exp = Letrec(
       mkEnv(
@@ -239,8 +240,8 @@ class SimpleTypingTest extends munit.FunSuite:
       ),
       Variable("f")
     )
-    
-    assertEquals(Typing().typecheck(exp), Left("todo"))
+
+    assertEquals(Typing().typecheck(exp), Left("Unknown variable f"))
   }
 
   test("f1") {

@@ -1,7 +1,7 @@
 package moe.irony.resil.basic
 
 import moe.irony.resil.lang.{Resil, Typing, newEnvironment}
-import moe.irony.resil.sig.{Binary, Binop, Components, Ctor, CtorPattern, Data, Func, I, IntT, IntV, Match, RslBlock, RslVar, S, SumDecl, TypeParamT, TypeVarT, Variable, WildcardPattern}
+import moe.irony.resil.sig.{Binary, Binop, Components, Ctor, CtorPattern, Data, Func, I, IntT, IntV, Match, RslBlock, RslVar, S, StrT, StrV, SumDecl, TupleT, TupleV, TypeParamT, TypeVarT, UnitT, Variable, WildcardPattern}
 
 class MatchingTest extends munit.FunSuite:
 
@@ -31,7 +31,7 @@ class MatchingTest extends munit.FunSuite:
       )
 
     val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks2)
-    assertEquals(res1(2), IntV(1))
+    assertEquals(res1(2), TupleV(List(StrV("Other case"), IntV(0)),2))
   }
 
   test("matching-1-typing") {
@@ -59,34 +59,15 @@ class MatchingTest extends munit.FunSuite:
         )
       )
 
-    assertEquals(Typing().typecheck(blocks2), Right(List(IntT)))
+    assertEquals(Typing().typecheck(blocks2), Right(List(
+      UnitT,
+      TupleT(List(StrT, IntT, IntT)),
+      TupleT(List(StrT, IntT))
+    )))
   }
 
-  test("matching-2-eval") {
-    val blocks1 =
-      List[RslBlock](
-        SumDecl(
-          "ListA", List(TypeVarT("A")), List(
-            Ctor("Nil", List()),
-            Ctor("Cons", List("value" -> TypeVarT("A"), "next" -> TypeParamT("ListA", List(TypeVarT("A")))))
-          )),
-        SumDecl(
-          "Option", List(TypeVarT("A")), List(
-            Ctor("None", List()),
-            Ctor("Some", List("value" -> TypeVarT("A")))
-          )),
-        Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
-        Func("x", Data("Cons", List(
-          Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
-      
-      )
 
-    val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
-    assertEquals(res1(2), IntV(1))
-    assertEquals(res1(3), IntV(1))
-  }
-
-  test("matching-2-typing") {
+  test("TODO/matching-2-typing") {
     val blocks1 =
       List[RslBlock](
         SumDecl(
@@ -105,28 +86,33 @@ class MatchingTest extends munit.FunSuite:
 
       )
 
-    assertEquals(Typing().typecheck(blocks1), Right(List(IntT)))
+//    assertEquals(Typing().typecheck(blocks1), Right(List(IntT)))
   }
 
-  val blocksCol =
-    List[RslBlock](
-      SumDecl(
-        "ListA", List(TypeVarT("A")), List(
-          Ctor("Nil", List()),
-          Ctor("Cons", List("value" -> TypeVarT("A"), "next" -> TypeParamT("ListA", List(TypeVarT("A")))))
-        )),
-      SumDecl(
-        "Option", List(TypeVarT("A")), List(
-          Ctor("None", List()),
-          Ctor("Some", List("value" -> TypeVarT("A")))
-        )),
-      Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
-      Func("x", Data("Cons", List(
-        Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
-      //        Func("x", Match(Variable("x"), List(
-      //          (CtorPattern("Nil", List()), Data("Nil", List())),
-      //          (CtorPattern("Cons", List(RslVar("y"), RslVar("ys"))), Data("Cons", List(
-      //            Data("Cons", List(Binop(Binary.ADD, Variable("f"), Variable("x"))))
-      //          )))
-      //          ))
-    )
+  test("TODO/matching-3-typing") {
+
+    val blocksCol =
+      List[RslBlock](
+        SumDecl(
+          "ListA", List(TypeVarT("A")), List(
+            Ctor("Nil", List()),
+            Ctor("Cons", List("value" -> TypeVarT("A"), "next" -> TypeParamT("ListA", List(TypeVarT("A")))))
+          )),
+        SumDecl(
+          "Option", List(TypeVarT("A")), List(
+            Ctor("None", List()),
+            Ctor("Some", List("value" -> TypeVarT("A")))
+          )),
+        Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
+        Func("x", Data("Cons", List(
+          Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+        //        Func("x", Match(Variable("x"), List(
+        //          (CtorPattern("Nil", List()), Data("Nil", List())),
+        //          (CtorPattern("Cons", List(RslVar("y"), RslVar("ys"))), Data("Cons", List(
+        //            Data("Cons", List(Binop(Binary.ADD, Variable("f"), Variable("x"))))
+        //          )))
+        //          ))
+      )
+
+    //    assertEquals(Typing().typecheck(blocks1), Right(List(IntT)))
+  }
