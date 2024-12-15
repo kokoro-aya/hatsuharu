@@ -16,14 +16,14 @@ A first version of language implementation includes:
   - MUPL code were ported here,
   - Full implementation of unification and constraint resolution
 - Augmentation on collections (tuple, record, list, array)
+- Basic custom ADT datatypes
+- Pattern matching, with possibility to type explicitly
+
+- Currently, multi-param functions can be achieved by tuples
 
 Several assignment exercises remain:
 
-- Pattern matching (ex. 5)
-- Explicit typing (ex. 6)
-- Multi-param functions (ex. 7)
 - Ref and Lazy constructs (ex 8 and 9)
-
 
 # Note
 
