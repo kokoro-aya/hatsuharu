@@ -107,226 +107,60 @@ def evalSeveralExps = {
   println()
 }
 
-def eval1() = {
-    val exp = Letrec(
-      mkEnv(
-        ("f", Func("x", Call(Variable("f"), Variable("x"))))
-      ),
-      Variable("f")
-    )
+object Blocks {
 
-    Typing().typecheck(exp)
-    println()
-}
-
-def eval2() = {
-
-  val blocks1 =
-    List[RslBlock](
-      SumDecl(
-        "Shape", List(), List(
-          Ctor("Square", List("side" -> IntT)),
-          Ctor("Circle", List("radius" -> IntT)),
-          Ctor("Rectangle", List("width" -> BoolT, "height" -> StrT)) // Type not checked yet
-        )),
-      Data("Square", List(I(16))),
-      Data("Rectangle", List(I(7), I(8)))
-    )
-
-  Typing().typecheck(blocks1)
-
-  val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
-
-  res1.map { it => Resil().show(it) }.foreach(println)
-}
-
-@main
-def main(): Unit = {
-//  val expr = Letrec(
-//    List(
-//      (RslVar("a"), Components(List(I(1), S("str")), 2))
-//    ),
-//    Variable("a")
-//  )
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
-
-//  val expr = Letrec(
-//    List(
-//      (TuplePattern(List(RslVar("a"), RslVar("b"))), Components(List(I(1), S("str")), 2))
-//    ),
-//    Variable("a")
-//  )
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
-
-//  val expr = Letrec(
-//    List(
-//      (TuplePattern(List(RslVar("a"), RslVar("b"))),
-//        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
-//    ),
-//    Variable("b")
-//  )
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
+  def eval2(): Unit = {
+      val blocks2 =
+        List[RslBlock](
+          SumDecl(
+            "Shape", List(), List(
+              Ctor("Square", List("side" -> IntT)),
+              Ctor("Circle", List("radius" -> IntT)),
+              Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
+            )),
+    //      Letrec(
+    //        List(
+    //          (CtorPattern("Rectangle", List(
+    //            RslVar("width"), RslVar("height")
+    //          )),
+    //            Data("Rectangle", List(I(15), I(7))))
+    //        ),
+    //        Variable("width")
+    //      )
+          Match(Data("Rectangle", List(I(15), I(7))),
+            List(
+              (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square I"), Variable("largeness"), I(0)), 2)),
+              (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect I"), Variable("w"), Variable("h")), 3)),
+              (WildcardPattern, Components(List(S("Other case"), I(0), I(0)), 3)),
+            )
+          ),
+          Match(Data("Circle", List(I(22))),
+            List(
+              (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square II"), Variable("largeness")), 2)),
+              (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect II"), Binop(Binary.ADD, Variable("w"), Variable("h"))), 2)),
+              (WildcardPattern, Components(List(S("Other case"), I(0)), 2)),
+            )
+          )
+        )
 
 
-//  val expr = Letrec(
-//    List(
-//      (TuplePattern(List(RslVar("a"), RslVar("b"), RslVar("c"))),
-//        Components(List(I(1), Components(List(I(97), S("bar"), B(false)), 3)), 2))
-//    ),
-//    Variable("b")
-//  )
 
-//  val expr = Letrec(
-//    List(
-//      (ListPattern(List(RslVar("x"), RslVar("xs"))),
-//        AList(List(I(1), I(2), I(3), I(4))
-//          //          AList(List(I(1), Components(List(I(97), S("bar"), B(false))), 2))
-//        ))),
-//    Variable("x")
-//  )
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
+      blocks2.tail.zipWithIndex.foreach { (it, i) => it match
+        case decl: RslDecl => ()
+        case exp: RslExp => {
+          println(s"[Case $i]:\n" ++  Resil().showExp(exp) ++ "\n" )
+        }
+        case _ => ()
+      }
 
-  // Error: [1,2,3,"S"], [[1,2,3],["S","Z"]]
+      Typing().typecheck(blocks2)
 
-//  val expr = Letrec(
-//    List(
-//      (TuplePattern(List(ListPattern(List(RslVar("x"), RslVar("xs"))), RslVar("ys"))),
-//        Components(
-//          List(
-//            (AList(List(I(1), I(2), I(3), I(4)))),
-//            (AList(List(I(1), I(2), I(3), I(4))))
-//        ), 2))),
-//    Variable("ys")
-//  )
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
+      val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
 
-//  val expr = Letrec(
-//    List(
-//      (RecordPattern(List(
-//        RslVar("a"), RslVar("b"), RslVar("c")
-//      )),
-//        Struct(None, Map("a" -> I(3), "b" -> I(4), "c" -> B(false))))
-//    ),
-//    Variable("c")
-//  )
-//
-//  println(Resil().showExp(expr))
-//
-//  Typing().typecheck(expr)
-//
-//  val res = Resil().eval(expr)
-//  println(res)
-//
-//  println()
-//  println()
-//
-//  val blocks1 =
-//    List[RslBlock](
-//      SumDecl(
-//        "Shape", List(), List(
-//          Ctor("Square", List("side" -> IntT)),
-//          Ctor("Circle", List("radius" -> IntT)),
-//          Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
-//        )),
-//      Letrec(
-//        List(
-//          (CtorPattern("Rectangle", List(
-//            RslVar("width"), RslVar("height")
-//          )),
-//            Data("Rectangle", List(I(15), I(7))))
-//        ),
-//        Variable("width")
-//      )
-//    )
-//
-//
-//  blocks1(1) match
-//    case decl: RslDecl => ()
-//    case exp: RslExp => {
-//      println(Resil().showExp(exp))
-//    }
-//    case _ => ()
-//
-//  Typing().typecheck(blocks1)
-//
-//  val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
-//
-//  res1.tail.map { it => Resil().show(it) }.foreach(println)
-//
-//
-//
-//  println()
-//  println()
-//
-//  val blocks2 =
-//    List[RslBlock](
-//      SumDecl(
-//        "Shape", List(), List(
-//          Ctor("Square", List("side" -> IntT)),
-//          Ctor("Circle", List("radius" -> IntT)),
-//          Ctor("Rectangle", List("width" -> IntT, "height" -> IntT)) // Type not checked yet
-//        )),
-////      Letrec(
-////        List(
-////          (CtorPattern("Rectangle", List(
-////            RslVar("width"), RslVar("height")
-////          )),
-////            Data("Rectangle", List(I(15), I(7))))
-////        ),
-////        Variable("width")
-////      )
-//      Match(Data("Rectangle", List(I(15), I(7))),
-//        List(
-//          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square I"), Variable("largeness"), I(0)), 2)),
-//          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect I"), Variable("w"), Variable("h")), 3)),
-//          (WildcardPattern, Components(List(S("Other case"), I(0), I(0)), 3)),
-//        )
-//      ),
-//      Match(Data("Circle", List(I(22))),
-//        List(
-//          (CtorPattern("Square", List(RslVar("largeness"))), Components(List(S("Square II"), Variable("largeness")), 2)),
-//          (CtorPattern("Rectangle", List(RslVar("w"), RslVar("h"))), Components(List(S("Rect II"), Binop(Binary.ADD, Variable("w"), Variable("h"))), 2)),
-//          (WildcardPattern, Components(List(S("Other case"), I(0)), 2)),
-//        )
-//      )
-//    )
-//
-//
-//
-//  blocks2.tail.zipWithIndex.foreach { (it, i) => it match
-//    case decl: RslDecl => ()
-//    case exp: RslExp => {
-//      println(s"[Case $i]:\n" ++  Resil().showExp(exp) ++ "\n" )
-//    }
-//    case _ => ()
-//  }
-//
-//  Typing().typecheck(blocks2)
-//
-//  val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
-//
-//  res2.tail.map { it => Resil().show(it) }.foreach(println)
+      res2.tail.map { it => Resil().show(it) }.foreach(println)
+  }
 
+  def eval3(): Unit = {
     val blocks1 =
       List[RslBlock](
         SumDecl(
@@ -339,120 +173,117 @@ def main(): Unit = {
             Ctor("None", List()),
             Ctor("Some", List("value" -> TypeVarT("A")))
           )),
-         Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
-         Func("x", Data("Cons", List(
-           Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
-//        Func("x", Match(Variable("x"), List(
-//          (CtorPattern("Nil", List()), Data("Nil", List())),
-//          (CtorPattern("Cons", List(RslVar("y"), RslVar("ys"))), Data("Cons", List(
-//            Data("Cons", List(Binop(Binary.ADD, Variable("f"), Variable("x"))))
-//          )))
-//          ))
-        )
-          
-          // Y-combinator?
-
-        // Option[List[Int]] => fail
-        // Type check failed, reason: Type check error with int and ListA<X8:int>::Cons
-//        Data("Some", List(
-//          Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List())))))))
-//        ))
-//        Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List()))))))),
-//        Data("Nil", List())
-
-
-      // Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
-      //
-      
-      // 
-      // Func("x", Data("Cons", List(
-      //   Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
-
-
-//    blocks1(1) match
-//      case decl: RslDecl => ()
-//      case exp: RslExp => {
-//        println(Resil().showExp(exp))
-//      }
-//      case _ => ()
-//
-//    Typing().typecheck(blocks1)
-//
-//    val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
-//
-//    res1.tail.map { it => Resil().show(it) }.foreach(println)
-
-      // let f = fun x -> (x, x) in
-      // let g = f 1 in
-      // let h = f "hello"
-
-      val func = Letrec(
-        List(
-          (RslVar("f"), Func("x", Components(List(Variable("x"), Variable("x")), 2)))
-        ),
-        Letrec(
-          List(
-            (RslVar("g"), Call(Variable("f"), I(1)))
-          ),
-          Variable("f")
-        )
+        Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List())))))))),
+        Func("x", Data("Cons", List(
+          Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+        //        Func("x", Match(Variable("x"), List(
+        //          (CtorPattern("Nil", List()), Data("Nil", List())),
+        //          (CtorPattern("Cons", List(RslVar("y"), RslVar("ys"))), Data("Cons", List(
+        //            Data("Cons", List(Binop(Binary.ADD, Variable("f"), Variable("x"))))
+        //          )))
+        //          ))
       )
 
-      val colFuns = Letrec(
-        List(
-          (RslVar("head"), Func("list", Match(Variable("list"), List(
-            (ListPattern(List()), Variable("list")),
-            (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("x"))
-          )))),
-          (RslVar("tail"), Func("list", Match(Variable("list"), List(
-            (ListPattern(List()), Variable("list")),
-            (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("xs"))
-          ))))
-        ),
-        Call(Variable("head"), AList(List(I(3), I(4), I(5), I(6), I(7))))
+    blocks1(1) match
+      case decl: RslDecl => ()
+      case exp: RslExp => {
+        println(Resil().showExp(exp))
+      }
+      case _ => ()
+
+    Typing().typecheck(blocks1)
+
+    val (env1, res1) = Resil().evalBlocks(newEnvironment)(blocks1)
+
+    res1.tail.map { it => Resil().show(it) }.foreach(println)
+  }
+}
+
+def eval4(): Unit = {
+  //  // TODO: add full workable example
+  //
+    val blocks2 =
+      List[RslBlock](
+        SumDecl(
+          "Shape", List(), List(
+            Ctor("Square", List(("side", IntT))),
+            Ctor("Circle", List(("radius", IntT))),
+            Ctor("Rectangle", List(("width", IntT), ("height", IntT)))
+          )),
+        Data("Rectangle", List(S("str"), I(8))) // Will raise mismatch error, but not typed currently
       )
 
-      Typing().typecheck(colFuns)
-      println(Resil().eval(colFuns))
+    Typing().typecheck(blocks2)
+    val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
+
+    res2.map { it => Resil().show(it) }.foreach(println)
+}
+
+def ycEval(): Unit = {
+  // Y-combinator?
+
+  // Option[List[Int]] => fail
+  // Type check failed, reason: Type check error with int and ListA<X8:int>::Cons
+  //        Data("Some", List(
+  //          Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List())))))))
+  //        ))
+  //        Data("Cons", List(I(3), Data("Cons", List(I(4), Data("Cons", List(I(5), Data("Nil", List()))))))),
+  //        Data("Nil", List())
 
 
-//    val expr1 = Letrec(
-//      List(
-//        (TuplePattern(List(
-//          RslVar("a"), RslVar("b"), RslTypedVar(RslVar("c"), BoolT))
-//        ),
-//          Components(List(I(3), I(4), I(3)), 3))
-//      ),
-//      Variable("c")
-//    )
-//
-//    Typing().typecheck(expr1)
-  
-  
-  /*  
-      val map = \f => \ys => ys match
-        case [] => []
-        case x :: xs => f x :: map xs
-   */
+  // Func("x", Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+  //
 
-//  // TODO: add full workable example
-//
-//    val blocks2 =
-//      List[RslBlock](
-//        SumDecl(
-//          "Shape", List(), List(
-//            Ctor("Square", List(("side", IntT))),
-//            Ctor("Circle", List(("radius", IntT))),
-//            Ctor("Rectangle", List(("width", IntT), ("height", IntT)))
-//          )),
-//        Data("Rectangle", List(S("str"), I(8))) // Will raise mismatch error, but not typed currently
-//      )
-//
-//    Typing().typecheck(blocks2)
-//    val (env2, res2) = Resil().evalBlocks(newEnvironment)(blocks2)
-//
-//  res2.map { it => Resil().show(it) }.foreach(println)
+  //
+  // Func("x", Data("Cons", List(
+  //   Binop(Binary.ADD, Variable("x"), I(1)), Data("Cons", List(Variable("x"), Data("Cons", List(Variable("x"), Data("Nil", List()))))))))
+}
 
+def evalLetPoly(): Unit = {
+  // let f = fun x -> (x, x) in
+  // let g = f 1 in
+  // let h = f "hello"
+
+  val func = Letrec(
+    List(
+      (RslVar("f"), Func("x", Components(List(Variable("x"), Variable("x")), 2)))
+    ),
+    Letrec(
+      List(
+        (RslVar("g"), Call(Variable("f"), I(1)))
+      ),
+      Variable("f")
+    )
+  )
+
+  val colFuns = Letrec(
+    List(
+      (RslVar("head"), Func("list", Match(Variable("list"), List(
+        (ListPattern(List()), Variable("list")),
+        (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("x"))
+      )))),
+      (RslVar("tail"), Func("list", Match(Variable("list"), List(
+        (ListPattern(List()), Variable("list")),
+        (ListPattern(List(RslVar("x"), RslVar("xs"))), Variable("xs"))
+      ))))
+    ),
+    Call(Variable("head"), AList(List(I(3), I(4), I(5), I(6), I(7))))
+  )
+
+  Typing().typecheck(colFuns)
+  println(Resil().eval(colFuns))
+}
+
+
+/*
+    val map = \f => \ys => ys match
+      case [] => []
+      case x :: xs => f x :: map xs
+ */
+
+
+@main
+def main(): Unit = {
 }
 
 def typeclassExample = {

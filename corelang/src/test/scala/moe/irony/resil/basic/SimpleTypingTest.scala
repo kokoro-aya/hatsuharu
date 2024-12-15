@@ -199,17 +199,7 @@ class SimpleTypingTest extends munit.FunSuite:
 
     assertEquals(Typing().typecheck(e1), Right(IntT))
   }
-
-  // TODO: test failed
-  /*
-      => Diff (- obtained, + expected)
-       Right(
-      -  value = ParamT(
-      -    param = "A"
-      -  )
-      +  value = moe.irony.resil.sig.IntT$@246e1fc8
-      )
-   */
+  
   test("f") {
     val f = Letrec(
       mkEnv(
@@ -240,6 +230,17 @@ class SimpleTypingTest extends munit.FunSuite:
     val f0 = Func("f", Func("#x", Call(Variable("f"), Call(Variable("f"), Variable("#x")))))
 
     assertEquals(Typing().typecheck(f0), Right(FuncT(FuncT(ParamT("A"), ParamT("A")), FuncT(ParamT("A"), ParamT("A")))))
+  }
+  
+  test("f0.1") {
+    val exp = Letrec(
+      mkEnv(
+        ("f", Func("x", Call(Variable("f"), Variable("x"))))
+      ),
+      Variable("f")
+    )
+    
+    assertEquals(Typing().typecheck(exp), Left("todo"))
   }
 
   test("f1") {
